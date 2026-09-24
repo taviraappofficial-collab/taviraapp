@@ -66,6 +66,9 @@ importers:
       '@nestjs/core':
         specifier: 11.1.6
         version: 11.1.6(@nestjs/common@11.1.6(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@tavira/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       reflect-metadata:
         specifier: 0.2.2
         version: 0.2.2

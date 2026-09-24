@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   creatorStatusSchema,
   giftTransactionSchema,
+  publicProfileSchema,
+  registerAccountRequestSchema,
   withdrawalStatusSchema,
 } from './index';
 
@@ -30,5 +32,36 @@ describe('financial and creator contracts', () => {
       createdAt: '2026-09-14T00:00:00.000Z',
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('identity contracts', () => {
+  it('requires a strong registration password and a normalized handle', () => {
+    const result = registerAccountRequestSchema.safeParse({
+      contactType: 'email',
+      contact: 'ada@example.com',
+      password: 'too-short',
+      displayName: 'Ada Okafor',
+      handle: 'Ada-Okafor',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('keeps creator, paid-badge, and seller states independent', () => {
+    const profile = publicProfileSchema.parse({
+      accountId: '01990b8a-2c18-7000-8000-000000000001',
+      handle: 'ada_okafor',
+      displayName: 'Ada Okafor',
+      bio: '',
+      avatarUrl: null,
+      creatorStatus: 'approved',
+      verificationBadgeStatus: 'not_applied',
+      sellerStatus: 'pending',
+    });
+    expect(profile).toMatchObject({
+      creatorStatus: 'approved',
+      verificationBadgeStatus: 'not_applied',
+      sellerStatus: 'pending',
+    });
   });
 });

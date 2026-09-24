@@ -8,4 +8,5 @@ coverage/
 !.env.example
 *.log
 .turbo/
+*.tsbuildinfo
 .pnpm-store/

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export * from './identity.js';
+
 export const creatorStatusSchema = z.enum([
   'not_applied',
   'pending',
