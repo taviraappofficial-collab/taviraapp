@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "TAVIRA",
+    "slug": "tavira",
+    "scheme": "tavira",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "plugins": ["expo-router"],
+    "web": { "bundler": "metro" }
+  }
+}

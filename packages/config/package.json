@@ -1,0 +1,11 @@
+{
+  "name": "@tavira/config",
+  "version": "0.0.0",
+  "private": true,
+  "files": [
+    "typescript"
+  ],
+  "exports": {
+    "./typescript/strict.json": "./typescript/strict.json"
+  }
+}

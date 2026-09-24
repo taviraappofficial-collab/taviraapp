@@ -1,0 +1,29 @@
+:root {
+  color: #151421;
+  background: #faf9fc;
+  font-family: Inter, system-ui, sans-serif;
+}
+body {
+  margin: 0;
+}
+main {
+  margin: 12vh auto;
+  max-width: 720px;
+  padding: 32px;
+}
+span {
+  color: #ff5a5f;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+h1 {
+  color: #17133f;
+  font-size: clamp(2rem, 7vw, 4rem);
+  margin: 12px 0;
+}
+button {
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px;
+  padding: 0 20px;
+}
