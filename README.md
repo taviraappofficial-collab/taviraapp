@@ -15,6 +15,7 @@ This repository contains the Milestone 0 foundation and selected Milestone 1 UI 
 ```sh
 pnpm install
 docker compose -f infra/docker/compose.yml up -d
+pnpm db:migrate
 pnpm dev
 ```
 
@@ -32,6 +33,7 @@ Mobile visual-review routes:
 ```sh
 pnpm format:check
 pnpm lint
+pnpm db:validate
 pnpm typecheck
 pnpm test
 pnpm build

@@ -9,4 +9,5 @@ coverage/
 *.log
 .turbo/
 *.tsbuildinfo
+apps/api/src/generated/prisma/
 .pnpm-store/

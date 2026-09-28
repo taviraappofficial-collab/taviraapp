@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ContactType {
+  email
+  phone
+}
+
+enum AccountStatus {
+  pending_verification
+  active
+  suspended
+  closed
+}
+
+enum CreatorStatus {
+  not_applied
+  pending
+  approved
+  rejected
+  suspended
+  revoked
+}
+
+enum VerificationBadgeStatus {
+  not_applied
+  pending
+  approved
+  rejected
+  expired
+  revoked
+}
+
+enum SellerStatus {
+  not_applied
+  pending
+  approved
+  rejected
+  suspended
+}
+
+model Account {
+  id          String        @id @db.Uuid
+  contactType ContactType
+  contact     String        @unique @db.VarChar(254)
+  status      AccountStatus @default(pending_verification)
+  createdAt   DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @db.Timestamptz(3)
+
+  credential             Credential?
+  profile                Profile?
+  verificationChallenges VerificationChallenge[]
+  sessions               Session[]
+
+  @@index([status])
+}
+
+model Credential {
+  accountId         String    @id @db.Uuid
+  passwordHash      String    @db.VarChar(512)
+  passwordUpdatedAt DateTime  @default(now()) @db.Timestamptz(3)
+  failedLoginCount  Int       @default(0)
+  lockedUntil       DateTime? @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+model Profile {
+  accountId               String                  @id @db.Uuid
+  handle                  String                  @unique @db.VarChar(30)
+  displayName             String                  @db.VarChar(80)
+  bio                     String                  @default("") @db.VarChar(160)
+  avatarUrl               String?                 @db.VarChar(2048)
+  creatorStatus           CreatorStatus           @default(not_applied)
+  verificationBadgeStatus VerificationBadgeStatus @default(not_applied)
+  sellerStatus            SellerStatus            @default(not_applied)
+  createdAt               DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime                @updatedAt @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+model VerificationChallenge {
+  id         String    @id @db.Uuid
+  accountId  String    @db.Uuid
+  codeHash   String    @db.Char(64)
+  expiresAt  DateTime  @db.Timestamptz(3)
+  attempts   Int       @default(0)
+  consumedAt DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
+  @@index([expiresAt])
+}
+
+model Session {
+  id               String    @id @db.Uuid
+  accountId        String    @db.Uuid
+  deviceName       String    @db.VarChar(100)
+  refreshTokenHash String    @unique @db.Char(64)
+  refreshExpiresAt DateTime  @db.Timestamptz(3)
+  revokedAt        DateTime? @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, revokedAt])
+  @@index([refreshExpiresAt])
+}

@@ -14,30 +14,12 @@ import {
   scryptSync,
   timingSafeEqual,
 } from 'node:crypto';
-
-type Account = {
-  id: string;
-  contact: string;
-  passwordHash: string;
-  status: 'pending_verification' | 'active' | 'suspended' | 'closed';
-  profile: PublicProfile;
-};
-
-type Challenge = {
-  id: string;
-  accountId: string;
-  codeHash: string;
-  expiresAt: number;
-  attempts: number;
-};
-type Session = {
-  id: string;
-  accountId: string;
-  deviceName: string;
-  refreshTokenHash: string;
-  refreshExpiresAt: number;
-  revokedAt?: number;
-};
+import {
+  IdentityRepository,
+  IdentityRepositoryConflictError,
+  type AccountRecord,
+  type SessionRecord,
+} from './identity.repository.js';
 
 export class IdentityError extends Error {
   constructor(readonly code: string) {
@@ -62,27 +44,27 @@ export class DevelopmentVerificationDelivery implements VerificationDelivery {
 
 @Injectable()
 export class IdentityService {
-  private readonly accounts = new Map<string, Account>();
-  private readonly accountIdsByContact = new Map<string, string>();
-  private readonly accountIdsByHandle = new Map<string, string>();
-  private readonly challenges = new Map<string, Challenge>();
-  private readonly sessions = new Map<string, Session>();
+  constructor(
+    private readonly delivery: DevelopmentVerificationDelivery,
+    private readonly repository: IdentityRepository,
+  ) {}
 
-  constructor(private readonly delivery: DevelopmentVerificationDelivery) {}
-
-  register(input: RegisterAccountRequest): RegisterAccountResponse {
+  async register(
+    input: RegisterAccountRequest,
+  ): Promise<RegisterAccountResponse> {
     const contact = normalizeContact(input.contact);
     const handle = input.handle.toLowerCase();
-    if (this.accountIdsByContact.has(contact))
+    if (await this.repository.findAccountByContact(contact))
       throw new IdentityError('CONTACT_ALREADY_REGISTERED');
-    if (this.accountIdsByHandle.has(handle))
+    if (await this.repository.findAccountByHandle(handle))
       throw new IdentityError('HANDLE_UNAVAILABLE');
 
     const accountId = uuidV7();
     const challengeId = uuidV7();
     const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
-    const account: Account = {
+    const account: AccountRecord = {
       id: accountId,
+      contactType: input.contactType,
       contact,
       passwordHash: hashPassword(input.password),
       status: 'pending_verification',
@@ -97,16 +79,20 @@ export class IdentityService {
         sellerStatus: 'not_applied',
       },
     };
-    this.accounts.set(accountId, account);
-    this.accountIdsByContact.set(contact, accountId);
-    this.accountIdsByHandle.set(handle, accountId);
-    this.challenges.set(challengeId, {
-      id: challengeId,
-      accountId,
-      codeHash: hashToken(code),
-      expiresAt: Date.now() + 10 * 60_000,
-      attempts: 0,
-    });
+    try {
+      await this.repository.createRegistration(account, {
+        id: challengeId,
+        accountId,
+        codeHash: hashToken(code),
+        expiresAt: new Date(Date.now() + 10 * 60_000),
+        attempts: 0,
+        consumedAt: null,
+      });
+    } catch (error: unknown) {
+      if (error instanceof IdentityRepositoryConflictError)
+        throw new IdentityError('CONTACT_OR_HANDLE_UNAVAILABLE');
+      throw error;
+    }
     this.delivery.send(contact, code);
     return {
       accountId,
@@ -116,26 +102,34 @@ export class IdentityService {
     };
   }
 
-  verifyContact(input: VerifyContactRequest): PublicProfile {
-    const challenge = this.challenges.get(input.challengeId);
-    if (!challenge || challenge.expiresAt <= Date.now())
+  async verifyContact(input: VerifyContactRequest): Promise<PublicProfile> {
+    const challenge = await this.repository.findChallenge(input.challengeId);
+    if (
+      !challenge ||
+      challenge.consumedAt ||
+      challenge.expiresAt.getTime() <= Date.now()
+    )
       throw new IdentityError('CHALLENGE_INVALID_OR_EXPIRED');
-    challenge.attempts += 1;
-    if (challenge.attempts > 5)
-      throw new IdentityError('CHALLENGE_ATTEMPTS_EXCEEDED');
+    const attempts = await this.repository.incrementChallengeAttempts(
+      challenge.id,
+    );
+    if (attempts > 5) throw new IdentityError('CHALLENGE_ATTEMPTS_EXCEEDED');
     if (!safeEqual(challenge.codeHash, hashToken(input.code)))
       throw new IdentityError('VERIFICATION_CODE_INVALID');
-    const account = this.requireAccount(challenge.accountId);
-    account.status = 'active';
-    this.challenges.delete(challenge.id);
+    const account = await this.repository.findAccountById(challenge.accountId);
+    if (!account) throw new IdentityError('ACCOUNT_NOT_FOUND');
+    await this.repository.activateAccountAndConsumeChallenge(
+      account.id,
+      challenge.id,
+      new Date(),
+    );
     return account.profile;
   }
 
-  login(input: LoginRequest): SessionTokens {
-    const accountId = this.accountIdsByContact.get(
+  async login(input: LoginRequest): Promise<SessionTokens> {
+    const account = await this.repository.findAccountByContact(
       normalizeContact(input.contact),
     );
-    const account = accountId ? this.accounts.get(accountId) : undefined;
     if (!account || !verifyPassword(input.password, account.passwordHash))
       throw new IdentityError('INVALID_CREDENTIALS');
     if (account.status !== 'active')
@@ -143,62 +137,74 @@ export class IdentityService {
     return this.issueSession(account.id, input.deviceName);
   }
 
-  refresh(refreshToken: string): SessionTokens {
+  async refresh(refreshToken: string): Promise<SessionTokens> {
     const tokenHash = hashToken(refreshToken);
-    const session = [...this.sessions.values()].find((candidate) =>
-      safeEqual(candidate.refreshTokenHash, tokenHash),
-    );
-    if (!session || session.revokedAt || session.refreshExpiresAt <= Date.now())
+    const session = await this.repository.findSessionByRefreshHash(tokenHash);
+    if (
+      !session ||
+      session.revokedAt ||
+      session.refreshExpiresAt.getTime() <= Date.now()
+    )
       throw new IdentityError('REFRESH_TOKEN_INVALID');
-    session.revokedAt = Date.now();
-    return this.issueSession(session.accountId, session.deviceName);
+    const replacement = createSession(session.accountId, session.deviceName);
+    const rotated = await this.repository.rotateSession(
+      session.id,
+      replacement.record,
+      new Date(),
+    );
+    if (!rotated) throw new IdentityError('REFRESH_TOKEN_INVALID');
+    return replacement.tokens;
   }
 
-  logoutAll(accountId: string): number {
-    let revoked = 0;
-    for (const session of this.sessions.values()) {
-      if (session.accountId === accountId && !session.revokedAt) {
-        session.revokedAt = Date.now();
-        revoked += 1;
-      }
-    }
-    return revoked;
+  logoutAll(accountId: string): Promise<number> {
+    return this.repository.revokeAllSessions(accountId, new Date());
   }
 
-  getProfile(handle: string): PublicProfile {
-    const accountId = this.accountIdsByHandle.get(handle.toLowerCase());
-    if (!accountId) throw new IdentityError('PROFILE_NOT_FOUND');
-    return this.requireAccount(accountId).profile;
+  async getProfile(handle: string): Promise<PublicProfile> {
+    const account = await this.repository.findAccountByHandle(
+      handle.toLowerCase(),
+    );
+    if (!account) throw new IdentityError('PROFILE_NOT_FOUND');
+    return account.profile;
   }
 
-  private issueSession(accountId: string, deviceName: string): SessionTokens {
-    const now = Date.now();
-    const accessToken = randomBytes(32).toString('base64url');
-    const refreshToken = randomBytes(48).toString('base64url');
-    const sessionId = uuidV7();
-    const accessTokenExpiresAt = now + 15 * 60_000;
-    const refreshTokenExpiresAt = now + 30 * 24 * 60 * 60_000;
-    this.sessions.set(sessionId, {
+  private async issueSession(
+    accountId: string,
+    deviceName: string,
+  ): Promise<SessionTokens> {
+    const session = createSession(accountId, deviceName);
+    await this.repository.createSession(session.record);
+    return session.tokens;
+  }
+}
+
+function createSession(
+  accountId: string,
+  deviceName: string,
+): { record: SessionRecord; tokens: SessionTokens } {
+  const now = Date.now();
+  const accessToken = randomBytes(32).toString('base64url');
+  const refreshToken = randomBytes(48).toString('base64url');
+  const sessionId = uuidV7();
+  const accessTokenExpiresAt = new Date(now + 15 * 60_000);
+  const refreshTokenExpiresAt = new Date(now + 30 * 24 * 60 * 60_000);
+  return {
+    record: {
       id: sessionId,
       accountId,
       deviceName,
       refreshTokenHash: hashToken(refreshToken),
       refreshExpiresAt: refreshTokenExpiresAt,
-    });
-    return {
+      revokedAt: null,
+    },
+    tokens: {
       accessToken,
-      accessTokenExpiresAt: new Date(accessTokenExpiresAt).toISOString(),
+      accessTokenExpiresAt: accessTokenExpiresAt.toISOString(),
       refreshToken,
-      refreshTokenExpiresAt: new Date(refreshTokenExpiresAt).toISOString(),
+      refreshTokenExpiresAt: refreshTokenExpiresAt.toISOString(),
       sessionId,
-    };
-  }
-
-  private requireAccount(accountId: string): Account {
-    const account = this.accounts.get(accountId);
-    if (!account) throw new IdentityError('ACCOUNT_NOT_FOUND');
-    return account;
-  }
+    },
+  };
 }
 
 function normalizeContact(contact: string): string {

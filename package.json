@@ -7,6 +7,9 @@
   },
   "scripts": {
     "build": "turbo build",
+    "db:generate": "pnpm --filter @tavira/api prisma:generate",
+    "db:migrate": "pnpm --filter @tavira/api migrate:deploy",
+    "db:validate": "pnpm --filter @tavira/api prisma:validate",
     "dev": "turbo dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

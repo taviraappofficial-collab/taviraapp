@@ -22,28 +22,28 @@ export class IdentityController {
   constructor(private readonly identity: IdentityService) {}
 
   @Post('identity/register')
-  register(@Body() body: unknown): unknown {
+  register(@Body() body: unknown): Promise<unknown> {
     return this.execute(() =>
       this.identity.register(registerAccountRequestSchema.parse(body)),
     );
   }
 
   @Post('identity/verify-contact')
-  verifyContact(@Body() body: unknown): unknown {
+  verifyContact(@Body() body: unknown): Promise<unknown> {
     return this.execute(() =>
       this.identity.verifyContact(verifyContactRequestSchema.parse(body)),
     );
   }
 
   @Post('identity/login')
-  login(@Body() body: unknown): unknown {
+  login(@Body() body: unknown): Promise<unknown> {
     return this.execute(() =>
       this.identity.login(loginRequestSchema.parse(body)),
     );
   }
 
   @Post('identity/refresh')
-  refresh(@Body() body: unknown): unknown {
+  refresh(@Body() body: unknown): Promise<unknown> {
     return this.execute(() => {
       const input = refreshSessionRequestSchema.parse(body);
       return this.identity.refresh(input.refreshToken);
@@ -51,13 +51,13 @@ export class IdentityController {
   }
 
   @Get('profiles/:handle')
-  profile(@Param('handle') handle: string): unknown {
+  profile(@Param('handle') handle: string): Promise<unknown> {
     return this.execute(() => this.identity.getProfile(handle));
   }
 
-  private execute<T>(operation: () => T): T {
+  private async execute<T>(operation: () => T | Promise<T>): Promise<T> {
     try {
-      return operation();
+      return await operation();
     } catch (error: unknown) {
       if (error instanceof IdentityError) {
         if (

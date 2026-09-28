@@ -12,11 +12,19 @@ This slice adds versioned contracts and an API domain boundary for:
 - public profile creation and lookup;
 - independent contact, creator, paid-badge and seller states.
 
-The current repository and verification-delivery adapters are intentionally in-memory/local. They establish domain behaviour for tests but are not production persistence or message delivery.
+PostgreSQL persistence is implemented with Prisma behind an `IdentityRepository` boundary. Registration and activation use database transactions; refresh rotation uses a conditional transactional revocation so a token cannot be reused concurrently. Unit tests use the in-memory adapter while the running NestJS API uses the Prisma adapter.
+
+The verification-delivery adapter remains local-only and does not expose one-time codes in logs or responses.
+
+## Local database review
+
+1. Copy `.env.example` to `.env` without committing it.
+2. Run `docker compose -f infra/docker/compose.yml up -d postgres`.
+3. Run `pnpm db:validate` and `pnpm db:generate`.
+4. Run `pnpm db:migrate` to apply `infra/migrations/0001_identity_foundation/migration.sql`.
 
 ## Required follow-up before Milestone 2 exit
 
-- Add Prisma/PostgreSQL models and migrations for accounts, credentials, profiles, challenges and sessions.
 - Select approved email/SMS verification providers and add rate limiting without exposing verification codes in logs or responses.
 - Add authenticated access-token validation, session/device listing, single-session logout and account recovery.
 - Add profile editing, privacy controls, block/report flows and audit events.

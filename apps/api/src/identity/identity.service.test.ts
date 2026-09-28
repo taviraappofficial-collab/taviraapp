@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MemoryIdentityRepository } from './identity.repository.js';
 import { IdentityError, IdentityService } from './identity.service.js';
 
 class CapturingDelivery {
@@ -18,22 +19,24 @@ const registration = {
 
 function setup(): { service: IdentityService; delivery: CapturingDelivery } {
   const delivery = new CapturingDelivery();
-  return { service: new IdentityService(delivery), delivery };
+  return {
+    service: new IdentityService(delivery, new MemoryIdentityRepository()),
+    delivery,
+  };
 }
 
 describe('IdentityService', () => {
-  it('keeps contact, creator, badge, and seller verification states separate', () => {
+  it('keeps contact, creator, badge, and seller verification states separate', async () => {
     const { service, delivery } = setup();
-    const result = service.register(registration);
-    expect(() =>
+    const result = await service.register(registration);
+    await expect(
       service.login({
         contact: registration.contact,
         password: registration.password,
         deviceName: 'Test phone',
       }),
-    ).toThrowError(new IdentityError('ACCOUNT_NOT_ACTIVE'));
-
-    const profile = service.verifyContact({
+    ).rejects.toThrowError(new IdentityError('ACCOUNT_NOT_ACTIVE'));
+    const profile = await service.verifyContact({
       challengeId: result.verificationChallengeId,
       code: delivery.latestCode,
     });
@@ -44,67 +47,67 @@ describe('IdentityService', () => {
     });
   });
 
-  it('normalizes contacts and rejects duplicate registrations', () => {
+  it('normalizes contacts and rejects duplicate registrations', async () => {
     const { service } = setup();
-    service.register(registration);
-    expect(() =>
+    await service.register(registration);
+    await expect(
       service.register({
         ...registration,
         contact: ' ada@EXAMPLE.com ',
         handle: 'another_handle',
       }),
-    ).toThrowError(new IdentityError('CONTACT_ALREADY_REGISTERED'));
+    ).rejects.toThrowError(new IdentityError('CONTACT_ALREADY_REGISTERED'));
   });
 
-  it('rejects an incorrect verification code', () => {
+  it('rejects an incorrect verification code', async () => {
     const { service } = setup();
-    const result = service.register(registration);
-    expect(() =>
+    const result = await service.register(registration);
+    await expect(
       service.verifyContact({
         challengeId: result.verificationChallengeId,
         code: '000000',
       }),
-    ).toThrowError(new IdentityError('VERIFICATION_CODE_INVALID'));
+    ).rejects.toThrowError(new IdentityError('VERIFICATION_CODE_INVALID'));
   });
 
-  it('rotates refresh tokens and rejects reuse', () => {
+  it('rotates refresh tokens and rejects reuse', async () => {
     const { service, delivery } = setup();
-    const result = service.register(registration);
-    service.verifyContact({
+    const result = await service.register(registration);
+    await service.verifyContact({
       challengeId: result.verificationChallengeId,
       code: delivery.latestCode,
     });
-    const first = service.login({
+    const first = await service.login({
       contact: registration.contact,
       password: registration.password,
       deviceName: 'Test phone',
     });
-    const rotated = service.refresh(first.refreshToken);
+    const rotated = await service.refresh(first.refreshToken);
     expect(rotated.refreshToken).not.toBe(first.refreshToken);
-    expect(() => service.refresh(first.refreshToken)).toThrowError(
+    await expect(service.refresh(first.refreshToken)).rejects.toThrowError(
       new IdentityError('REFRESH_TOKEN_INVALID'),
     );
   });
 
-  it('revokes every active device session', () => {
+  it('revokes every active device session', async () => {
     const { service, delivery } = setup();
-    const result = service.register(registration);
-    service.verifyContact({
+    const result = await service.register(registration);
+    await service.verifyContact({
       challengeId: result.verificationChallengeId,
       code: delivery.latestCode,
     });
-    const first = service.login({
+    const first = await service.login({
       contact: registration.contact,
       password: registration.password,
       deviceName: 'Phone',
     });
-    service.login({
+    await service.login({
       contact: registration.contact,
       password: registration.password,
       deviceName: 'Tablet',
     });
-    expect(service.logoutAll(result.accountId)).toBe(2);
-    expect(() => service.refresh(first.refreshToken)).toThrowError(
+    await expect(service.logoutAll(result.accountId)).resolves.toBe(2);
+    await expect(service.refresh(first.refreshToken)).rejects.toThrowError(
       new IdentityError('REFRESH_TOKEN_INVALID'),
     );
   });
