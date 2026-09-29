@@ -41,6 +41,18 @@ Profile and safety endpoints:
 - `DELETE /v1/identity/blocks/:accountId`
 - `POST /v1/identity/reports`
 
+## Mobile identity journey
+
+Expo Router screens now cover registration, contact verification, login, privacy preferences, and account/device management:
+
+- `/identity/register`
+- `/identity/verify`
+- `/identity/login`
+- `/identity/privacy`
+- `/identity/account`
+
+The screens use shared TAVIRA tokens, accessible controls, mobile-safe validation models, and responsive web layouts. They currently operate as an interactive review journey; API transport and secure token persistence remain deliberately separate follow-up work.
+
 The verification-delivery adapter remains local-only and does not expose one-time codes in logs or responses.
 
 ## Local database review
@@ -55,5 +67,5 @@ The verification-delivery adapter remains local-only and does not expose one-tim
 - Select approved email/SMS verification providers and add rate limiting without exposing verification codes in logs or responses.
 - Select production email/SMS delivery providers and add provider-level abuse monitoring.
 - Add moderation review tooling and audit-event retention/export policy.
-- Add mobile registration, verification, login, privacy and account-management screens.
+- Connect the mobile identity journey to the API with secure device token storage.
 - Add end-to-end API and mobile lifecycle tests.

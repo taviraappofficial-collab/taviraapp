@@ -48,6 +48,13 @@ export default function Gallery() {
         </Text>
         <Text style={styles.subtitle}>Chat. Discover. Shop.</Text>
         <Link
+          href="/identity/register"
+          accessibilityRole="link"
+          style={styles.reviewLink}
+        >
+          Open identity and account journey →
+        </Link>
+        <Link
           href="/core-review"
           accessibilityRole="link"
           style={styles.reviewLink}
