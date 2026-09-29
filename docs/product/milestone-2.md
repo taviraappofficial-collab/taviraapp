@@ -24,6 +24,13 @@ Authenticated session endpoints:
 
 Each requires `Authorization: Bearer <access-token>`.
 
+Password recovery is enumeration-safe: request responses are identical for known and unknown contacts. Reset challenges expire after 10 minutes, allow at most five code attempts, and are limited to three deliveries per account per hour. A successful reset atomically updates the password, consumes the challenge, and revokes all active sessions.
+
+Recovery endpoints:
+
+- `POST /v1/identity/password-reset/request`
+- `POST /v1/identity/password-reset/confirm`
+
 The verification-delivery adapter remains local-only and does not expose one-time codes in logs or responses.
 
 ## Local database review
@@ -36,7 +43,7 @@ The verification-delivery adapter remains local-only and does not expose one-tim
 ## Required follow-up before Milestone 2 exit
 
 - Select approved email/SMS verification providers and add rate limiting without exposing verification codes in logs or responses.
-- Add account recovery and production credential-compromise handling.
+- Select production email/SMS delivery providers and add provider-level abuse monitoring.
 - Add profile editing, privacy controls, block/report flows and audit events.
 - Add mobile registration, verification, login, privacy and account-management screens.
 - Add end-to-end API and mobile lifecycle tests.

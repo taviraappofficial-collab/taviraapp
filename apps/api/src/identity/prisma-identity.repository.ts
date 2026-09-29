@@ -72,6 +72,7 @@ export class PrismaIdentityRepository extends IdentityRepository {
           data: {
             id: challenge.id,
             accountId: challenge.accountId,
+            purpose: challenge.purpose,
             codeHash: challenge.codeHash,
             expiresAt: challenge.expiresAt,
           },
@@ -86,6 +87,30 @@ export class PrismaIdentityRepository extends IdentityRepository {
 
   async findChallenge(id: string): Promise<ChallengeRecord | null> {
     return this.prisma.verificationChallenge.findUnique({ where: { id } });
+  }
+
+  async createChallenge(challenge: ChallengeRecord): Promise<void> {
+    await this.prisma.verificationChallenge.create({ data: challenge });
+  }
+
+  async findLatestChallenge(
+    accountId: string,
+    purpose: ChallengeRecord['purpose'],
+  ): Promise<ChallengeRecord | null> {
+    return this.prisma.verificationChallenge.findFirst({
+      where: { accountId, purpose },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  countChallengesSince(
+    accountId: string,
+    purpose: ChallengeRecord['purpose'],
+    since: Date,
+  ): Promise<number> {
+    return this.prisma.verificationChallenge.count({
+      where: { accountId, purpose, createdAt: { gte: since } },
+    });
   }
 
   async incrementChallengeAttempts(id: string): Promise<number> {
@@ -175,6 +200,35 @@ export class PrismaIdentityRepository extends IdentityRepository {
       data: { revokedAt: now },
     });
     return result.count;
+  }
+
+  async resetPassword(
+    accountId: string,
+    challengeId: string,
+    passwordHash: string,
+    now: Date,
+  ): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const consumed = await tx.verificationChallenge.updateMany({
+        where: { id: challengeId, accountId, consumedAt: null },
+        data: { consumedAt: now },
+      });
+      if (consumed.count !== 1) return false;
+      await tx.credential.update({
+        where: { accountId },
+        data: {
+          passwordHash,
+          passwordUpdatedAt: now,
+          failedLoginCount: 0,
+          lockedUntil: null,
+        },
+      });
+      await tx.session.updateMany({
+        where: { accountId, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      return true;
+    });
   }
 
   private toAccount(

@@ -4,8 +4,10 @@ import { IdentityError, IdentityService } from './identity.service.js';
 
 class CapturingDelivery {
   latestCode = '';
+  deliveries = 0;
   send(_contact: string, code: string): void {
     this.latestCode = code;
+    this.deliveries += 1;
   }
 }
 
@@ -138,8 +140,9 @@ describe('IdentityService', () => {
       createdAt: expect.any(String) as string,
       current: true,
     });
-    expect(listed.sessions.find((session) => session.deviceName === 'Tablet'))
-      .toMatchObject({ current: false });
+    expect(
+      listed.sessions.find((session) => session.deviceName === 'Tablet'),
+    ).toMatchObject({ current: false });
     await expect(service.listSessions('invalid-token')).rejects.toThrowError(
       new IdentityError('ACCESS_TOKEN_INVALID'),
     );
@@ -170,5 +173,64 @@ describe('IdentityService', () => {
     const listed = await service.listSessions(phone.accessToken);
     expect(listed.sessions).toHaveLength(1);
     expect(listed.sessions[0]?.sessionId).toBe(phone.sessionId);
+  });
+
+  it('resets a password and revokes every existing session', async () => {
+    const { service, delivery } = setup();
+    const result = await service.register(registration);
+    await service.verifyContact({
+      challengeId: result.verificationChallengeId,
+      code: delivery.latestCode,
+    });
+    const session = await service.login({
+      contact: registration.contact,
+      password: registration.password,
+      deviceName: 'Phone',
+    });
+
+    await expect(
+      service.requestPasswordReset(registration.contact),
+    ).resolves.toEqual({ accepted: true });
+    await service.resetPassword({
+      contact: registration.contact,
+      code: delivery.latestCode,
+      newPassword: 'a new correct horse battery staple',
+    });
+
+    await expect(service.refresh(session.refreshToken)).rejects.toThrowError(
+      new IdentityError('REFRESH_TOKEN_INVALID'),
+    );
+    await expect(
+      service.login({
+        contact: registration.contact,
+        password: registration.password,
+        deviceName: 'Old password',
+      }),
+    ).rejects.toThrowError(new IdentityError('INVALID_CREDENTIALS'));
+    await expect(
+      service.login({
+        contact: registration.contact,
+        password: 'a new correct horse battery staple',
+        deviceName: 'New password',
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it('keeps password-reset requests enumeration-safe and throttles delivery', async () => {
+    const { service, delivery } = setup();
+    const result = await service.register(registration);
+    await service.verifyContact({
+      challengeId: result.verificationChallengeId,
+      code: delivery.latestCode,
+    });
+    const initialDeliveries = delivery.deliveries;
+
+    await expect(
+      service.requestPasswordReset('unknown@example.com'),
+    ).resolves.toEqual({ accepted: true });
+    for (let attempt = 0; attempt < 4; attempt += 1)
+      await service.requestPasswordReset(registration.contact);
+
+    expect(delivery.deliveries).toBe(initialDeliveries + 3);
   });
 });

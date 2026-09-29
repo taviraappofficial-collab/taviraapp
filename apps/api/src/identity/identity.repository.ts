@@ -13,10 +13,12 @@ export type AccountRecord = {
 export type ChallengeRecord = {
   id: string;
   accountId: string;
+  purpose: 'contact_verification' | 'password_reset';
   codeHash: string;
   expiresAt: Date;
   attempts: number;
   consumedAt: Date | null;
+  createdAt: Date;
 };
 
 export type SessionRecord = {
@@ -42,6 +44,16 @@ export abstract class IdentityRepository {
     challenge: ChallengeRecord,
   ): Promise<void>;
   abstract findChallenge(id: string): Promise<ChallengeRecord | null>;
+  abstract createChallenge(challenge: ChallengeRecord): Promise<void>;
+  abstract findLatestChallenge(
+    accountId: string,
+    purpose: ChallengeRecord['purpose'],
+  ): Promise<ChallengeRecord | null>;
+  abstract countChallengesSince(
+    accountId: string,
+    purpose: ChallengeRecord['purpose'],
+    since: Date,
+  ): Promise<number>;
   abstract incrementChallengeAttempts(id: string): Promise<number>;
   abstract activateAccountAndConsumeChallenge(
     accountId: string,
@@ -67,6 +79,12 @@ export abstract class IdentityRepository {
     now: Date,
   ): Promise<boolean>;
   abstract revokeAllSessions(accountId: string, now: Date): Promise<number>;
+  abstract resetPassword(
+    accountId: string,
+    challengeId: string,
+    passwordHash: string,
+    now: Date,
+  ): Promise<boolean>;
 }
 
 @Injectable()
@@ -106,6 +124,40 @@ export class MemoryIdentityRepository extends IdentityRepository {
 
   findChallenge(id: string): Promise<ChallengeRecord | null> {
     return Promise.resolve(this.challenges.get(id) ?? null);
+  }
+
+  createChallenge(challenge: ChallengeRecord): Promise<void> {
+    this.challenges.set(challenge.id, challenge);
+    return Promise.resolve();
+  }
+
+  findLatestChallenge(
+    accountId: string,
+    purpose: ChallengeRecord['purpose'],
+  ): Promise<ChallengeRecord | null> {
+    return Promise.resolve(
+      [...this.challenges.values()]
+        .filter(
+          (challenge) =>
+            challenge.accountId === accountId && challenge.purpose === purpose,
+        )
+        .at(-1) ?? null,
+    );
+  }
+
+  countChallengesSince(
+    accountId: string,
+    purpose: ChallengeRecord['purpose'],
+    since: Date,
+  ): Promise<number> {
+    return Promise.resolve(
+      [...this.challenges.values()].filter(
+        (challenge) =>
+          challenge.accountId === accountId &&
+          challenge.purpose === purpose &&
+          challenge.createdAt.getTime() >= since.getTime(),
+      ).length,
+    );
   }
 
   incrementChallengeAttempts(id: string): Promise<number> {
@@ -193,5 +245,20 @@ export class MemoryIdentityRepository extends IdentityRepository {
       }
     }
     return Promise.resolve(revoked);
+  }
+
+  resetPassword(
+    accountId: string,
+    challengeId: string,
+    passwordHash: string,
+    now: Date,
+  ): Promise<boolean> {
+    const account = this.accounts.get(accountId);
+    const challenge = this.challenges.get(challengeId);
+    if (!account || !challenge || challenge.consumedAt)
+      return Promise.resolve(false);
+    if (account) account.passwordHash = passwordHash;
+    if (challenge) challenge.consumedAt = now;
+    return this.revokeAllSessions(accountId, now).then(() => true);
   }
 }

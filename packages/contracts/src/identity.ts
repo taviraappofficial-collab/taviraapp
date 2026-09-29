@@ -68,6 +68,20 @@ export const revokeSessionRequestSchema = z.object({
   sessionId: z.uuid(),
 });
 
+export const requestPasswordResetSchema = z.object({
+  contact: normalizedContactSchema,
+});
+
+export const requestPasswordResetResponseSchema = z.object({
+  accepted: z.literal(true),
+});
+
+export const resetPasswordSchema = z.object({
+  contact: normalizedContactSchema,
+  code: z.string().regex(/^\d{6}$/),
+  newPassword: z.string().min(12).max(128),
+});
+
 export const publicProfileSchema = z.object({
   accountId: z.uuid(),
   handle: handleSchema,
@@ -112,4 +126,6 @@ export type SessionTokens = z.infer<typeof sessionTokensSchema>;
 export type DeviceSession = z.infer<typeof deviceSessionSchema>;
 export type DeviceSessionList = z.infer<typeof deviceSessionListSchema>;
 export type RevokeSessionRequest = z.infer<typeof revokeSessionRequestSchema>;
+export type RequestPasswordReset = z.infer<typeof requestPasswordResetSchema>;
+export type ResetPassword = z.infer<typeof resetPasswordSchema>;
 export type PublicProfile = z.infer<typeof publicProfileSchema>;

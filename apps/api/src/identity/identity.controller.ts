@@ -15,6 +15,8 @@ import {
   loginRequestSchema,
   refreshSessionRequestSchema,
   registerAccountRequestSchema,
+  requestPasswordResetSchema,
+  resetPasswordSchema,
   revokeSessionRequestSchema,
   verifyContactRequestSchema,
 } from '@tavira/contracts';
@@ -50,6 +52,22 @@ export class IdentityController {
     return this.execute(() => {
       const input = refreshSessionRequestSchema.parse(body);
       return this.identity.refresh(input.refreshToken);
+    });
+  }
+
+  @Post('identity/password-reset/request')
+  requestPasswordReset(@Body() body: unknown): Promise<unknown> {
+    return this.execute(() => {
+      const input = requestPasswordResetSchema.parse(body);
+      return this.identity.requestPasswordReset(input.contact);
+    });
+  }
+
+  @Post('identity/password-reset/confirm')
+  resetPassword(@Body() body: unknown): Promise<unknown> {
+    return this.execute(async () => {
+      await this.identity.resetPassword(resetPasswordSchema.parse(body));
+      return { reset: true };
     });
   }
 

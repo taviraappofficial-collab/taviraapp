@@ -5,6 +5,7 @@ import type {
   PublicProfile,
   RegisterAccountRequest,
   RegisterAccountResponse,
+  ResetPassword,
   SessionTokens,
   VerifyContactRequest,
 } from '@tavira/contracts';
@@ -80,14 +81,17 @@ export class IdentityService {
         sellerStatus: 'not_applied',
       },
     };
+    const createdAt = new Date();
     try {
       await this.repository.createRegistration(account, {
         id: challengeId,
         accountId,
+        purpose: 'contact_verification',
         codeHash: hashToken(code),
-        expiresAt: new Date(Date.now() + 10 * 60_000),
+        expiresAt: new Date(createdAt.getTime() + 10 * 60_000),
         attempts: 0,
         consumedAt: null,
+        createdAt,
       });
     } catch (error: unknown) {
       if (error instanceof IdentityRepositoryConflictError)
@@ -155,6 +159,67 @@ export class IdentityService {
     );
     if (!rotated) throw new IdentityError('REFRESH_TOKEN_INVALID');
     return replacement.tokens;
+  }
+
+  async requestPasswordReset(
+    contactInput: string,
+  ): Promise<{ accepted: true }> {
+    const contact = normalizeContact(contactInput);
+    const account = await this.repository.findAccountByContact(contact);
+    if (!account || account.status !== 'active') return { accepted: true };
+
+    const now = new Date();
+    const recent = await this.repository.countChallengesSince(
+      account.id,
+      'password_reset',
+      new Date(now.getTime() - 60 * 60_000),
+    );
+    if (recent >= 3) return { accepted: true };
+
+    const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
+    await this.repository.createChallenge({
+      id: uuidV7(),
+      accountId: account.id,
+      purpose: 'password_reset',
+      codeHash: hashToken(code),
+      expiresAt: new Date(now.getTime() + 10 * 60_000),
+      attempts: 0,
+      consumedAt: null,
+      createdAt: now,
+    });
+    this.delivery.send(contact, code);
+    return { accepted: true };
+  }
+
+  async resetPassword(input: ResetPassword): Promise<void> {
+    const account = await this.repository.findAccountByContact(
+      normalizeContact(input.contact),
+    );
+    if (!account || account.status !== 'active')
+      throw new IdentityError('PASSWORD_RESET_INVALID');
+    const challenge = await this.repository.findLatestChallenge(
+      account.id,
+      'password_reset',
+    );
+    if (
+      !challenge ||
+      challenge.consumedAt ||
+      challenge.expiresAt.getTime() <= Date.now()
+    )
+      throw new IdentityError('PASSWORD_RESET_INVALID');
+    const attempts = await this.repository.incrementChallengeAttempts(
+      challenge.id,
+    );
+    if (attempts > 5) throw new IdentityError('PASSWORD_RESET_INVALID');
+    if (!safeEqual(challenge.codeHash, hashToken(input.code)))
+      throw new IdentityError('PASSWORD_RESET_INVALID');
+    const reset = await this.repository.resetPassword(
+      account.id,
+      challenge.id,
+      hashPassword(input.newPassword),
+      new Date(),
+    );
+    if (!reset) throw new IdentityError('PASSWORD_RESET_INVALID');
   }
 
   async listSessions(accessToken: string): Promise<DeviceSessionList> {
