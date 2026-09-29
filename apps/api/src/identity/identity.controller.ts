@@ -6,18 +6,24 @@ import {
   Get,
   NotFoundException,
   Param,
+  Patch,
   Post,
+  Put,
   Body,
   Headers,
   UnauthorizedException,
 } from '@nestjs/common';
 import {
+  accountIdParameterSchema,
   loginRequestSchema,
   refreshSessionRequestSchema,
   registerAccountRequestSchema,
+  reportAccountRequestSchema,
   requestPasswordResetSchema,
   resetPasswordSchema,
   revokeSessionRequestSchema,
+  updatePrivacyRequestSchema,
+  updateProfileRequestSchema,
   verifyContactRequestSchema,
 } from '@tavira/contracts';
 import { IdentityError, IdentityService } from './identity.service.js';
@@ -104,9 +110,83 @@ export class IdentityController {
     }));
   }
 
+  @Patch('identity/profile')
+  updateProfile(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: unknown,
+  ): Promise<unknown> {
+    return this.execute(() =>
+      this.identity.updateProfile(
+        readBearerToken(authorization),
+        updateProfileRequestSchema.parse(body),
+      ),
+    );
+  }
+
+  @Put('identity/privacy')
+  updatePrivacy(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: unknown,
+  ): Promise<unknown> {
+    return this.execute(() =>
+      this.identity.updatePrivacy(
+        readBearerToken(authorization),
+        updatePrivacyRequestSchema.parse(body),
+      ),
+    );
+  }
+
+  @Post('identity/blocks/:accountId')
+  blockAccount(
+    @Headers('authorization') authorization: string | undefined,
+    @Param() params: unknown,
+  ): Promise<unknown> {
+    return this.execute(async () => {
+      const { accountId } = accountIdParameterSchema.parse(params);
+      await this.identity.blockAccount(
+        readBearerToken(authorization),
+        accountId,
+      );
+      return { blocked: true };
+    });
+  }
+
+  @Delete('identity/blocks/:accountId')
+  unblockAccount(
+    @Headers('authorization') authorization: string | undefined,
+    @Param() params: unknown,
+  ): Promise<unknown> {
+    return this.execute(async () => {
+      const { accountId } = accountIdParameterSchema.parse(params);
+      await this.identity.unblockAccount(
+        readBearerToken(authorization),
+        accountId,
+      );
+      return { blocked: false };
+    });
+  }
+
+  @Post('identity/reports')
+  reportAccount(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: unknown,
+  ): Promise<unknown> {
+    return this.execute(() =>
+      this.identity.reportAccount(
+        readBearerToken(authorization),
+        reportAccountRequestSchema.parse(body),
+      ),
+    );
+  }
+
   @Get('profiles/:handle')
-  profile(@Param('handle') handle: string): Promise<unknown> {
-    return this.execute(() => this.identity.getProfile(handle));
+  profile(
+    @Param('handle') handle: string,
+    @Headers('authorization') authorization?: string,
+  ): Promise<unknown> {
+    return this.execute(() =>
+      this.identity.getProfile(handle, readOptionalBearerToken(authorization)),
+    );
   }
 
   private async execute<T>(operation: () => T | Promise<T>): Promise<T> {
@@ -126,7 +206,7 @@ export class IdentityController {
         ) {
           throw new UnauthorizedException({ code: error.code });
         }
-        if (error.code === 'PROFILE_NOT_FOUND')
+        if (error.code.endsWith('NOT_FOUND'))
           throw new NotFoundException({ code: error.code });
         throw new BadRequestException({ code: error.code });
       }
@@ -140,4 +220,8 @@ function readBearerToken(authorization?: string): string {
   if (scheme?.toLowerCase() !== 'bearer' || !token)
     throw new IdentityError('ACCESS_TOKEN_INVALID');
   return token;
+}
+
+function readOptionalBearerToken(authorization?: string): string | undefined {
+  return authorization ? readBearerToken(authorization) : undefined;
 }

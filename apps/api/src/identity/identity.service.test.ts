@@ -233,4 +233,85 @@ describe('IdentityService', () => {
 
     expect(delivery.deliveries).toBe(initialDeliveries + 3);
   });
+
+  it('updates profile fields and enforces private profile visibility', async () => {
+    const { service, delivery } = setup();
+    const result = await service.register(registration);
+    await service.verifyContact({
+      challengeId: result.verificationChallengeId,
+      code: delivery.latestCode,
+    });
+    const session = await service.login({
+      contact: registration.contact,
+      password: registration.password,
+      deviceName: 'Phone',
+    });
+
+    await expect(
+      service.updateProfile(session.accessToken, {
+        displayName: 'Ada Updated',
+        bio: 'Building safer communities.',
+      }),
+    ).resolves.toMatchObject({
+      displayName: 'Ada Updated',
+      bio: 'Building safer communities.',
+    });
+    await service.updatePrivacy(session.accessToken, {
+      profileVisibility: 'private',
+      discoverable: false,
+    });
+
+    await expect(service.getProfile(registration.handle)).rejects.toThrowError(
+      new IdentityError('PROFILE_NOT_FOUND'),
+    );
+    await expect(
+      service.getProfile(registration.handle, session.accessToken),
+    ).resolves.toMatchObject({ profileVisibility: 'private' });
+  });
+
+  it('enforces blocks and accepts safety reports', async () => {
+    const { service, delivery } = setup();
+    const adaResult = await service.register(registration);
+    await service.verifyContact({
+      challengeId: adaResult.verificationChallengeId,
+      code: delivery.latestCode,
+    });
+    const adaSession = await service.login({
+      contact: registration.contact,
+      password: registration.password,
+      deviceName: 'Ada phone',
+    });
+    const bobRegistration = {
+      ...registration,
+      contact: 'bob@example.com',
+      displayName: 'Bob Bello',
+      handle: 'bob_bello',
+    };
+    const bobResult = await service.register(bobRegistration);
+    await service.verifyContact({
+      challengeId: bobResult.verificationChallengeId,
+      code: delivery.latestCode,
+    });
+    const bobSession = await service.login({
+      contact: bobRegistration.contact,
+      password: bobRegistration.password,
+      deviceName: 'Bob phone',
+    });
+
+    await service.blockAccount(adaSession.accessToken, bobResult.accountId);
+    await expect(
+      service.getProfile(registration.handle, bobSession.accessToken),
+    ).rejects.toThrowError(new IdentityError('PROFILE_NOT_FOUND'));
+    await expect(
+      service.reportAccount(bobSession.accessToken, {
+        targetAccountId: adaResult.accountId,
+        category: 'harassment',
+        details: 'Safety review requested.',
+      }),
+    ).resolves.toMatchObject({ status: 'submitted' });
+    await service.unblockAccount(adaSession.accessToken, bobResult.accountId);
+    await expect(
+      service.getProfile(registration.handle, bobSession.accessToken),
+    ).resolves.toMatchObject({ handle: registration.handle });
+  });
 });

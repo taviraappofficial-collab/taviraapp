@@ -54,6 +54,8 @@ describe('identity contracts', () => {
       displayName: 'Ada Okafor',
       bio: '',
       avatarUrl: null,
+      profileVisibility: 'public',
+      discoverable: true,
       creatorStatus: 'approved',
       verificationBadgeStatus: 'not_applied',
       sellerStatus: 'pending',

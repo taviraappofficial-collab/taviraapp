@@ -31,6 +31,16 @@ Recovery endpoints:
 - `POST /v1/identity/password-reset/request`
 - `POST /v1/identity/password-reset/confirm`
 
+Authenticated profile and safety controls provide editable public fields, private/discoverability settings, bidirectional block enforcement, safety-report intake, and append-only audit events written in the same database transaction as each mutation.
+
+Profile and safety endpoints:
+
+- `PATCH /v1/identity/profile`
+- `PUT /v1/identity/privacy`
+- `POST /v1/identity/blocks/:accountId`
+- `DELETE /v1/identity/blocks/:accountId`
+- `POST /v1/identity/reports`
+
 The verification-delivery adapter remains local-only and does not expose one-time codes in logs or responses.
 
 ## Local database review
@@ -44,6 +54,6 @@ The verification-delivery adapter remains local-only and does not expose one-tim
 
 - Select approved email/SMS verification providers and add rate limiting without exposing verification codes in logs or responses.
 - Select production email/SMS delivery providers and add provider-level abuse monitoring.
-- Add profile editing, privacy controls, block/report flows and audit events.
+- Add moderation review tooling and audit-event retention/export policy.
 - Add mobile registration, verification, login, privacy and account-management screens.
 - Add end-to-end API and mobile lifecycle tests.

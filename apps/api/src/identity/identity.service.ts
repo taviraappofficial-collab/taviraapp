@@ -3,10 +3,14 @@ import type {
   DeviceSessionList,
   LoginRequest,
   PublicProfile,
+  ReportAccountRequest,
   RegisterAccountRequest,
   RegisterAccountResponse,
   ResetPassword,
+  SafetyReportResponse,
   SessionTokens,
+  UpdatePrivacyRequest,
+  UpdateProfileRequest,
   VerifyContactRequest,
 } from '@tavira/contracts';
 import {
@@ -76,6 +80,8 @@ export class IdentityService {
         displayName: input.displayName.trim(),
         bio: '',
         avatarUrl: null,
+        profileVisibility: 'public',
+        discoverable: true,
         creatorStatus: 'not_applied',
         verificationBadgeStatus: 'not_applied',
         sellerStatus: 'not_applied',
@@ -254,11 +260,91 @@ export class IdentityService {
     return this.repository.revokeAllSessions(accountId, new Date());
   }
 
-  async getProfile(handle: string): Promise<PublicProfile> {
+  async updateProfile(
+    accessToken: string,
+    update: UpdateProfileRequest,
+  ): Promise<PublicProfile> {
+    const session = await this.authenticate(accessToken);
+    return this.repository.updateProfile(session.accountId, update, uuidV7());
+  }
+
+  async updatePrivacy(
+    accessToken: string,
+    update: UpdatePrivacyRequest,
+  ): Promise<PublicProfile> {
+    const session = await this.authenticate(accessToken);
+    return this.repository.updatePrivacy(session.accountId, update, uuidV7());
+  }
+
+  async blockAccount(accessToken: string, blockedId: string): Promise<void> {
+    const session = await this.authenticate(accessToken);
+    if (session.accountId === blockedId)
+      throw new IdentityError('ACCOUNT_RELATION_INVALID');
+    if (!(await this.repository.findAccountById(blockedId)))
+      throw new IdentityError('ACCOUNT_NOT_FOUND');
+    await this.repository.blockAccount(session.accountId, blockedId, uuidV7());
+  }
+
+  async unblockAccount(accessToken: string, blockedId: string): Promise<void> {
+    const session = await this.authenticate(accessToken);
+    const removed = await this.repository.unblockAccount(
+      session.accountId,
+      blockedId,
+      uuidV7(),
+    );
+    if (!removed) throw new IdentityError('BLOCK_NOT_FOUND');
+  }
+
+  async reportAccount(
+    accessToken: string,
+    input: ReportAccountRequest,
+  ): Promise<SafetyReportResponse> {
+    const session = await this.authenticate(accessToken);
+    if (session.accountId === input.targetAccountId)
+      throw new IdentityError('ACCOUNT_RELATION_INVALID');
+    if (!(await this.repository.findAccountById(input.targetAccountId)))
+      throw new IdentityError('ACCOUNT_NOT_FOUND');
+    const reportId = uuidV7();
+    await this.repository.createSafetyReport(
+      {
+        id: reportId,
+        reporterId: session.accountId,
+        targetAccountId: input.targetAccountId,
+        category: input.category,
+        details: input.details ?? null,
+      },
+      uuidV7(),
+    );
+    return { reportId, status: 'submitted' };
+  }
+
+  async getProfile(
+    handle: string,
+    accessToken?: string,
+  ): Promise<PublicProfile> {
     const account = await this.repository.findAccountByHandle(
       handle.toLowerCase(),
     );
     if (!account) throw new IdentityError('PROFILE_NOT_FOUND');
+    if (!accessToken) {
+      if (
+        account.profile.profileVisibility !== 'public' ||
+        !account.profile.discoverable
+      )
+        throw new IdentityError('PROFILE_NOT_FOUND');
+      return account.profile;
+    }
+    const viewer = await this.authenticate(accessToken);
+    if (viewer.accountId === account.id) return account.profile;
+    if (
+      account.profile.profileVisibility !== 'public' ||
+      !account.profile.discoverable ||
+      (await this.repository.isBlockedEitherDirection(
+        viewer.accountId,
+        account.id,
+      ))
+    )
+      throw new IdentityError('PROFILE_NOT_FOUND');
     return account.profile;
   }
 

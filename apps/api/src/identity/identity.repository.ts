@@ -1,6 +1,28 @@
 import { Injectable } from '@nestjs/common';
 import type { PublicProfile } from '@tavira/contracts';
 
+export type ProfileUpdate = Partial<
+  Pick<PublicProfile, 'displayName' | 'bio' | 'avatarUrl'>
+>;
+
+export type PrivacyUpdate = Pick<
+  PublicProfile,
+  'profileVisibility' | 'discoverable'
+>;
+
+export type SafetyReportRecord = {
+  id: string;
+  reporterId: string;
+  targetAccountId: string;
+  category:
+    | 'spam'
+    | 'harassment'
+    | 'impersonation'
+    | 'unsafe_content'
+    | 'other';
+  details: string | null;
+};
+
 export type AccountRecord = {
   id: string;
   contactType: 'email' | 'phone';
@@ -85,6 +107,34 @@ export abstract class IdentityRepository {
     passwordHash: string,
     now: Date,
   ): Promise<boolean>;
+  abstract updateProfile(
+    accountId: string,
+    update: ProfileUpdate,
+    auditEventId: string,
+  ): Promise<PublicProfile>;
+  abstract updatePrivacy(
+    accountId: string,
+    update: PrivacyUpdate,
+    auditEventId: string,
+  ): Promise<PublicProfile>;
+  abstract isBlockedEitherDirection(
+    firstAccountId: string,
+    secondAccountId: string,
+  ): Promise<boolean>;
+  abstract blockAccount(
+    blockerId: string,
+    blockedId: string,
+    auditEventId: string,
+  ): Promise<void>;
+  abstract unblockAccount(
+    blockerId: string,
+    blockedId: string,
+    auditEventId: string,
+  ): Promise<boolean>;
+  abstract createSafetyReport(
+    report: SafetyReportRecord,
+    auditEventId: string,
+  ): Promise<void>;
 }
 
 @Injectable()
@@ -92,6 +142,8 @@ export class MemoryIdentityRepository extends IdentityRepository {
   private readonly accounts = new Map<string, AccountRecord>();
   private readonly challenges = new Map<string, ChallengeRecord>();
   private readonly sessions = new Map<string, SessionRecord>();
+  private readonly blocks = new Set<string>();
+  private readonly reports = new Map<string, SafetyReportRecord>();
 
   findAccountById(id: string): Promise<AccountRecord | null> {
     return Promise.resolve(this.accounts.get(id) ?? null);
@@ -260,5 +312,67 @@ export class MemoryIdentityRepository extends IdentityRepository {
     if (account) account.passwordHash = passwordHash;
     if (challenge) challenge.consumedAt = now;
     return this.revokeAllSessions(accountId, now).then(() => true);
+  }
+
+  updateProfile(
+    accountId: string,
+    update: ProfileUpdate,
+    _auditEventId: string,
+  ): Promise<PublicProfile> {
+    void _auditEventId;
+    const account = this.accounts.get(accountId);
+    if (!account) return Promise.reject(new Error('ACCOUNT_NOT_FOUND'));
+    account.profile = { ...account.profile, ...update };
+    return Promise.resolve(account.profile);
+  }
+
+  updatePrivacy(
+    accountId: string,
+    update: PrivacyUpdate,
+    _auditEventId: string,
+  ): Promise<PublicProfile> {
+    void _auditEventId;
+    const account = this.accounts.get(accountId);
+    if (!account) return Promise.reject(new Error('ACCOUNT_NOT_FOUND'));
+    account.profile = { ...account.profile, ...update };
+    return Promise.resolve(account.profile);
+  }
+
+  isBlockedEitherDirection(
+    firstAccountId: string,
+    secondAccountId: string,
+  ): Promise<boolean> {
+    return Promise.resolve(
+      this.blocks.has(`${firstAccountId}:${secondAccountId}`) ||
+        this.blocks.has(`${secondAccountId}:${firstAccountId}`),
+    );
+  }
+
+  blockAccount(
+    blockerId: string,
+    blockedId: string,
+    _auditEventId: string,
+  ): Promise<void> {
+    void _auditEventId;
+    this.blocks.add(`${blockerId}:${blockedId}`);
+    return Promise.resolve();
+  }
+
+  unblockAccount(
+    blockerId: string,
+    blockedId: string,
+    _auditEventId: string,
+  ): Promise<boolean> {
+    void _auditEventId;
+    return Promise.resolve(this.blocks.delete(`${blockerId}:${blockedId}`));
+  }
+
+  createSafetyReport(
+    report: SafetyReportRecord,
+    _auditEventId: string,
+  ): Promise<void> {
+    void _auditEventId;
+    this.reports.set(report.id, report);
+    return Promise.resolve();
   }
 }

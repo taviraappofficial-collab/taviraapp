@@ -88,6 +88,8 @@ export const publicProfileSchema = z.object({
   displayName: z.string().min(2).max(80),
   bio: z.string().max(160),
   avatarUrl: z.url().nullable(),
+  profileVisibility: z.enum(['public', 'private']),
+  discoverable: z.boolean(),
   creatorStatus: z.enum([
     'not_applied',
     'pending',
@@ -113,6 +115,40 @@ export const publicProfileSchema = z.object({
   ]),
 });
 
+export const updateProfileRequestSchema = z
+  .object({
+    displayName: z.string().trim().min(2).max(80).optional(),
+    bio: z.string().trim().max(160).optional(),
+    avatarUrl: z.url().nullable().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: 'At least one profile field is required',
+  });
+
+export const updatePrivacyRequestSchema = z.object({
+  profileVisibility: z.enum(['public', 'private']),
+  discoverable: z.boolean(),
+});
+
+export const accountIdParameterSchema = z.object({ accountId: z.uuid() });
+
+export const reportAccountRequestSchema = z.object({
+  targetAccountId: z.uuid(),
+  category: z.enum([
+    'spam',
+    'harassment',
+    'impersonation',
+    'unsafe_content',
+    'other',
+  ]),
+  details: z.string().trim().max(1000).nullable().optional(),
+});
+
+export const safetyReportResponseSchema = z.object({
+  reportId: z.uuid(),
+  status: z.literal('submitted'),
+});
+
 export type RegisterAccountRequest = z.infer<
   typeof registerAccountRequestSchema
 >;
@@ -129,3 +165,7 @@ export type RevokeSessionRequest = z.infer<typeof revokeSessionRequestSchema>;
 export type RequestPasswordReset = z.infer<typeof requestPasswordResetSchema>;
 export type ResetPassword = z.infer<typeof resetPasswordSchema>;
 export type PublicProfile = z.infer<typeof publicProfileSchema>;
+export type UpdateProfileRequest = z.infer<typeof updateProfileRequestSchema>;
+export type UpdatePrivacyRequest = z.infer<typeof updatePrivacyRequestSchema>;
+export type ReportAccountRequest = z.infer<typeof reportAccountRequestSchema>;
+export type SafetyReportResponse = z.infer<typeof safetyReportResponseSchema>;

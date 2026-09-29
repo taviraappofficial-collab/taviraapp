@@ -6,6 +6,9 @@ import {
   IdentityRepositoryConflictError,
   type AccountRecord,
   type ChallengeRecord,
+  type PrivacyUpdate,
+  type ProfileUpdate,
+  type SafetyReportRecord,
   type SessionRecord,
 } from './identity.repository.js';
 
@@ -229,6 +232,134 @@ export class PrismaIdentityRepository extends IdentityRepository {
       });
       return true;
     });
+  }
+
+  async updateProfile(
+    accountId: string,
+    update: ProfileUpdate,
+    auditEventId: string,
+  ): Promise<PublicProfile> {
+    return this.prisma.$transaction(async (tx) => {
+      const profile = await tx.profile.update({
+        where: { accountId },
+        data: update,
+      });
+      await tx.auditEvent.create({
+        data: {
+          id: auditEventId,
+          actorAccountId: accountId,
+          action: 'profile.updated',
+          targetAccountId: accountId,
+          metadata: { fields: Object.keys(update) },
+        },
+      });
+      return profile;
+    });
+  }
+
+  async updatePrivacy(
+    accountId: string,
+    update: PrivacyUpdate,
+    auditEventId: string,
+  ): Promise<PublicProfile> {
+    return this.prisma.$transaction(async (tx) => {
+      const profile = await tx.profile.update({
+        where: { accountId },
+        data: update,
+      });
+      await tx.auditEvent.create({
+        data: {
+          id: auditEventId,
+          actorAccountId: accountId,
+          action: 'profile.privacy_updated',
+          targetAccountId: accountId,
+          metadata: update,
+        },
+      });
+      return profile;
+    });
+  }
+
+  async isBlockedEitherDirection(
+    firstAccountId: string,
+    secondAccountId: string,
+  ): Promise<boolean> {
+    return (
+      (await this.prisma.accountBlock.count({
+        where: {
+          OR: [
+            { blockerId: firstAccountId, blockedId: secondAccountId },
+            { blockerId: secondAccountId, blockedId: firstAccountId },
+          ],
+        },
+      })) > 0
+    );
+  }
+
+  async blockAccount(
+    blockerId: string,
+    blockedId: string,
+    auditEventId: string,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.accountBlock.upsert({
+        where: { blockerId_blockedId: { blockerId, blockedId } },
+        create: { blockerId, blockedId },
+        update: {},
+      });
+      await tx.auditEvent.create({
+        data: {
+          id: auditEventId,
+          actorAccountId: blockerId,
+          action: 'account.blocked',
+          targetAccountId: blockedId,
+          metadata: {},
+        },
+      });
+    });
+  }
+
+  async unblockAccount(
+    blockerId: string,
+    blockedId: string,
+    auditEventId: string,
+  ): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const deleted = await tx.accountBlock.deleteMany({
+        where: { blockerId, blockedId },
+      });
+      if (deleted.count !== 1) return false;
+      await tx.auditEvent.create({
+        data: {
+          id: auditEventId,
+          actorAccountId: blockerId,
+          action: 'account.unblocked',
+          targetAccountId: blockedId,
+          metadata: {},
+        },
+      });
+      return true;
+    });
+  }
+
+  async createSafetyReport(
+    report: SafetyReportRecord,
+    auditEventId: string,
+  ): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.safetyReport.create({
+        data: { ...report, status: 'submitted' },
+      }),
+      this.prisma.auditEvent.create({
+        data: {
+          id: auditEventId,
+          actorAccountId: report.reporterId,
+          action: 'safety.report_submitted',
+          targetAccountId: report.targetAccountId,
+          metadata: { reportId: report.id, category: report.category },
+        },
+      }),
+    ]);
   }
 
   private toAccount(

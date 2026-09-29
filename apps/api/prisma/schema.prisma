@@ -50,6 +50,26 @@ enum ChallengePurpose {
   password_reset
 }
 
+enum ProfileVisibility {
+  public
+  private
+}
+
+enum ReportCategory {
+  spam
+  harassment
+  impersonation
+  unsafe_content
+  other
+}
+
+enum ReportStatus {
+  submitted
+  reviewing
+  resolved
+  dismissed
+}
+
 model Account {
   id          String        @id @db.Uuid
   contactType ContactType
@@ -82,6 +102,8 @@ model Profile {
   displayName             String                  @db.VarChar(80)
   bio                     String                  @default("") @db.VarChar(160)
   avatarUrl               String?                 @db.VarChar(2048)
+  profileVisibility       ProfileVisibility       @default(public)
+  discoverable            Boolean                 @default(true)
   creatorStatus           CreatorStatus           @default(not_applied)
   verificationBadgeStatus VerificationBadgeStatus @default(not_applied)
   sellerStatus            SellerStatus            @default(not_applied)
@@ -89,6 +111,42 @@ model Profile {
   updatedAt               DateTime                @updatedAt @db.Timestamptz(3)
 
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+model AccountBlock {
+  blockerId String   @db.Uuid
+  blockedId String   @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+model SafetyReport {
+  id              String         @id @db.Uuid
+  reporterId      String         @db.Uuid
+  targetAccountId String         @db.Uuid
+  category        ReportCategory
+  details         String?        @db.VarChar(1000)
+  status          ReportStatus   @default(submitted)
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @db.Timestamptz(3)
+
+  @@index([reporterId, createdAt])
+  @@index([targetAccountId, status])
+}
+
+model AuditEvent {
+  id              String   @id @db.Uuid
+  actorAccountId  String?  @db.Uuid
+  action          String   @db.VarChar(100)
+  targetAccountId String?  @db.Uuid
+  metadata        Json
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([actorAccountId, createdAt])
+  @@index([targetAccountId, createdAt])
+  @@index([action, createdAt])
 }
 
 model VerificationChallenge {
