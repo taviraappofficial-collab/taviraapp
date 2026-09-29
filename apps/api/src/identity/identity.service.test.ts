@@ -111,4 +111,64 @@ describe('IdentityService', () => {
       new IdentityError('REFRESH_TOKEN_INVALID'),
     );
   });
+
+  it('authenticates access tokens and lists device sessions', async () => {
+    const { service, delivery } = setup();
+    const result = await service.register(registration);
+    await service.verifyContact({
+      challengeId: result.verificationChallengeId,
+      code: delivery.latestCode,
+    });
+    const phone = await service.login({
+      contact: registration.contact,
+      password: registration.password,
+      deviceName: 'Phone',
+    });
+    await service.login({
+      contact: registration.contact,
+      password: registration.password,
+      deviceName: 'Tablet',
+    });
+
+    const listed = await service.listSessions(phone.accessToken);
+    expect(listed.sessions).toHaveLength(2);
+    expect(listed.sessions).toContainEqual({
+      sessionId: phone.sessionId,
+      deviceName: 'Phone',
+      createdAt: expect.any(String) as string,
+      current: true,
+    });
+    expect(listed.sessions.find((session) => session.deviceName === 'Tablet'))
+      .toMatchObject({ current: false });
+    await expect(service.listSessions('invalid-token')).rejects.toThrowError(
+      new IdentityError('ACCESS_TOKEN_INVALID'),
+    );
+  });
+
+  it('revokes one owned session without revoking another device', async () => {
+    const { service, delivery } = setup();
+    const result = await service.register(registration);
+    await service.verifyContact({
+      challengeId: result.verificationChallengeId,
+      code: delivery.latestCode,
+    });
+    const phone = await service.login({
+      contact: registration.contact,
+      password: registration.password,
+      deviceName: 'Phone',
+    });
+    const tablet = await service.login({
+      contact: registration.contact,
+      password: registration.password,
+      deviceName: 'Tablet',
+    });
+
+    await service.logoutSession(phone.accessToken, tablet.sessionId);
+    await expect(service.refresh(tablet.refreshToken)).rejects.toThrowError(
+      new IdentityError('REFRESH_TOKEN_INVALID'),
+    );
+    const listed = await service.listSessions(phone.accessToken);
+    expect(listed.sessions).toHaveLength(1);
+    expect(listed.sessions[0]?.sessionId).toBe(phone.sessionId);
+  });
 });

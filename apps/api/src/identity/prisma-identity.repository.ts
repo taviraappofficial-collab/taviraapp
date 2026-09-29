@@ -124,6 +124,31 @@ export class PrismaIdentityRepository extends IdentityRepository {
     return this.prisma.session.findUnique({ where: { refreshTokenHash } });
   }
 
+  async findSessionByAccessHash(
+    accessTokenHash: string,
+  ): Promise<SessionRecord | null> {
+    return this.prisma.session.findUnique({ where: { accessTokenHash } });
+  }
+
+  async listSessions(accountId: string): Promise<SessionRecord[]> {
+    return this.prisma.session.findMany({
+      where: { accountId, revokedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async revokeSession(
+    accountId: string,
+    sessionId: string,
+    now: Date,
+  ): Promise<boolean> {
+    const result = await this.prisma.session.updateMany({
+      where: { id: sessionId, accountId, revokedAt: null },
+      data: { revokedAt: now },
+    });
+    return result.count === 1;
+  }
+
   async rotateSession(
     currentSessionId: string,
     replacement: SessionRecord,

@@ -23,9 +23,12 @@ export type SessionRecord = {
   id: string;
   accountId: string;
   deviceName: string;
+  accessTokenHash: string | null;
+  accessExpiresAt: Date | null;
   refreshTokenHash: string;
   refreshExpiresAt: Date;
   revokedAt: Date | null;
+  createdAt: Date;
 };
 
 export class IdentityRepositoryConflictError extends Error {}
@@ -49,6 +52,15 @@ export abstract class IdentityRepository {
   abstract findSessionByRefreshHash(
     refreshTokenHash: string,
   ): Promise<SessionRecord | null>;
+  abstract findSessionByAccessHash(
+    accessTokenHash: string,
+  ): Promise<SessionRecord | null>;
+  abstract listSessions(accountId: string): Promise<SessionRecord[]>;
+  abstract revokeSession(
+    accountId: string,
+    sessionId: string,
+    now: Date,
+  ): Promise<boolean>;
   abstract rotateSession(
     currentSessionId: string,
     replacement: SessionRecord,
@@ -128,6 +140,36 @@ export class MemoryIdentityRepository extends IdentityRepository {
         (session) => session.refreshTokenHash === refreshTokenHash,
       ) ?? null,
     );
+  }
+
+  findSessionByAccessHash(
+    accessTokenHash: string,
+  ): Promise<SessionRecord | null> {
+    return Promise.resolve(
+      [...this.sessions.values()].find(
+        (session) => session.accessTokenHash === accessTokenHash,
+      ) ?? null,
+    );
+  }
+
+  listSessions(accountId: string): Promise<SessionRecord[]> {
+    return Promise.resolve(
+      [...this.sessions.values()].filter(
+        (session) => session.accountId === accountId && !session.revokedAt,
+      ),
+    );
+  }
+
+  revokeSession(
+    accountId: string,
+    sessionId: string,
+    now: Date,
+  ): Promise<boolean> {
+    const session = this.sessions.get(sessionId);
+    if (!session || session.accountId !== accountId || session.revokedAt)
+      return Promise.resolve(false);
+    session.revokedAt = now;
+    return Promise.resolve(true);
   }
 
   rotateSession(

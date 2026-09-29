@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type {
+  DeviceSessionList,
   LoginRequest,
   PublicProfile,
   RegisterAccountRequest,
@@ -156,6 +157,34 @@ export class IdentityService {
     return replacement.tokens;
   }
 
+  async listSessions(accessToken: string): Promise<DeviceSessionList> {
+    const current = await this.authenticate(accessToken);
+    const sessions = await this.repository.listSessions(current.accountId);
+    return {
+      sessions: sessions.map((session) => ({
+        sessionId: session.id,
+        deviceName: session.deviceName,
+        createdAt: session.createdAt.toISOString(),
+        current: session.id === current.id,
+      })),
+    };
+  }
+
+  async logoutSession(accessToken: string, sessionId: string): Promise<void> {
+    const current = await this.authenticate(accessToken);
+    const revoked = await this.repository.revokeSession(
+      current.accountId,
+      sessionId,
+      new Date(),
+    );
+    if (!revoked) throw new IdentityError('SESSION_NOT_FOUND');
+  }
+
+  async logoutAllAuthenticated(accessToken: string): Promise<number> {
+    const current = await this.authenticate(accessToken);
+    return this.logoutAll(current.accountId);
+  }
+
   logoutAll(accountId: string): Promise<number> {
     return this.repository.revokeAllSessions(accountId, new Date());
   }
@@ -176,6 +205,23 @@ export class IdentityService {
     await this.repository.createSession(session.record);
     return session.tokens;
   }
+
+  private async authenticate(accessToken: string): Promise<SessionRecord> {
+    const session = await this.repository.findSessionByAccessHash(
+      hashToken(accessToken),
+    );
+    if (
+      !session ||
+      session.revokedAt ||
+      !session.accessExpiresAt ||
+      session.accessExpiresAt.getTime() <= Date.now()
+    )
+      throw new IdentityError('ACCESS_TOKEN_INVALID');
+    const account = await this.repository.findAccountById(session.accountId);
+    if (!account || account.status !== 'active')
+      throw new IdentityError('ACCESS_TOKEN_INVALID');
+    return session;
+  }
 }
 
 function createSession(
@@ -193,9 +239,12 @@ function createSession(
       id: sessionId,
       accountId,
       deviceName,
+      accessTokenHash: hashToken(accessToken),
+      accessExpiresAt: accessTokenExpiresAt,
       refreshTokenHash: hashToken(refreshToken),
       refreshExpiresAt: refreshTokenExpiresAt,
       revokedAt: null,
+      createdAt: new Date(now),
     },
     tokens: {
       accessToken,

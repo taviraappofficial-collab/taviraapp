@@ -105,6 +105,8 @@ model Session {
   id               String    @id @db.Uuid
   accountId        String    @db.Uuid
   deviceName       String    @db.VarChar(100)
+  accessTokenHash  String?   @unique @db.Char(64)
+  accessExpiresAt  DateTime? @db.Timestamptz(3)
   refreshTokenHash String    @unique @db.Char(64)
   refreshExpiresAt DateTime  @db.Timestamptz(3)
   revokedAt        DateTime? @db.Timestamptz(3)
@@ -114,4 +116,5 @@ model Session {
 
   @@index([accountId, revokedAt])
   @@index([refreshExpiresAt])
+  @@index([accessExpiresAt])
 }

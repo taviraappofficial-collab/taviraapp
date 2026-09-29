@@ -53,6 +53,21 @@ export const sessionTokensSchema = z.object({
   sessionId: z.uuid(),
 });
 
+export const deviceSessionSchema = z.object({
+  sessionId: z.uuid(),
+  deviceName: z.string().min(1).max(100),
+  createdAt: z.iso.datetime(),
+  current: z.boolean(),
+});
+
+export const deviceSessionListSchema = z.object({
+  sessions: z.array(deviceSessionSchema),
+});
+
+export const revokeSessionRequestSchema = z.object({
+  sessionId: z.uuid(),
+});
+
 export const publicProfileSchema = z.object({
   accountId: z.uuid(),
   handle: handleSchema,
@@ -94,4 +109,7 @@ export type VerifyContactRequest = z.infer<typeof verifyContactRequestSchema>;
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
 export type RefreshSessionRequest = z.infer<typeof refreshSessionRequestSchema>;
 export type SessionTokens = z.infer<typeof sessionTokensSchema>;
+export type DeviceSession = z.infer<typeof deviceSessionSchema>;
+export type DeviceSessionList = z.infer<typeof deviceSessionListSchema>;
+export type RevokeSessionRequest = z.infer<typeof revokeSessionRequestSchema>;
 export type PublicProfile = z.infer<typeof publicProfileSchema>;

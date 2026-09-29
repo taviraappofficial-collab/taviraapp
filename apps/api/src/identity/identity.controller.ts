@@ -2,17 +2,20 @@ import {
   BadRequestException,
   ConflictException,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
   Post,
   Body,
+  Headers,
   UnauthorizedException,
 } from '@nestjs/common';
 import {
   loginRequestSchema,
   refreshSessionRequestSchema,
   registerAccountRequestSchema,
+  revokeSessionRequestSchema,
   verifyContactRequestSchema,
 } from '@tavira/contracts';
 import { IdentityError, IdentityService } from './identity.service.js';
@@ -50,6 +53,39 @@ export class IdentityController {
     });
   }
 
+  @Get('identity/sessions')
+  sessions(@Headers('authorization') authorization?: string): Promise<unknown> {
+    return this.execute(() =>
+      this.identity.listSessions(readBearerToken(authorization)),
+    );
+  }
+
+  @Delete('identity/sessions/:sessionId')
+  logoutSession(
+    @Headers('authorization') authorization: string | undefined,
+    @Param() params: unknown,
+  ): Promise<unknown> {
+    return this.execute(async () => {
+      const { sessionId } = revokeSessionRequestSchema.parse(params);
+      await this.identity.logoutSession(
+        readBearerToken(authorization),
+        sessionId,
+      );
+      return { revoked: true };
+    });
+  }
+
+  @Post('identity/logout-all')
+  logoutAll(
+    @Headers('authorization') authorization?: string,
+  ): Promise<unknown> {
+    return this.execute(async () => ({
+      revokedSessions: await this.identity.logoutAllAuthenticated(
+        readBearerToken(authorization),
+      ),
+    }));
+  }
+
   @Get('profiles/:handle')
   profile(@Param('handle') handle: string): Promise<unknown> {
     return this.execute(() => this.identity.getProfile(handle));
@@ -79,4 +115,11 @@ export class IdentityController {
       throw new BadRequestException({ code: 'REQUEST_INVALID' });
     }
   }
+}
+
+function readBearerToken(authorization?: string): string {
+  const [scheme, token] = authorization?.split(' ') ?? [];
+  if (scheme?.toLowerCase() !== 'bearer' || !token)
+    throw new IdentityError('ACCESS_TOKEN_INVALID');
+  return token;
 }

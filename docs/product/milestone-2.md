@@ -14,6 +14,16 @@ This slice adds versioned contracts and an API domain boundary for:
 
 PostgreSQL persistence is implemented with Prisma behind an `IdentityRepository` boundary. Registration and activation use database transactions; refresh rotation uses a conditional transactional revocation so a token cannot be reused concurrently. Unit tests use the in-memory adapter while the running NestJS API uses the Prisma adapter.
 
+Access tokens are opaque random credentials stored only as SHA-256 hashes. Authenticated clients can list their active device sessions, revoke one owned session, or revoke all sessions. Account status, session revocation, and access-token expiry are checked for every authenticated operation.
+
+Authenticated session endpoints:
+
+- `GET /v1/identity/sessions`
+- `DELETE /v1/identity/sessions/:sessionId`
+- `POST /v1/identity/logout-all`
+
+Each requires `Authorization: Bearer <access-token>`.
+
 The verification-delivery adapter remains local-only and does not expose one-time codes in logs or responses.
 
 ## Local database review
@@ -26,7 +36,7 @@ The verification-delivery adapter remains local-only and does not expose one-tim
 ## Required follow-up before Milestone 2 exit
 
 - Select approved email/SMS verification providers and add rate limiting without exposing verification codes in logs or responses.
-- Add authenticated access-token validation, session/device listing, single-session logout and account recovery.
+- Add account recovery and production credential-compromise handling.
 - Add profile editing, privacy controls, block/report flows and audit events.
 - Add mobile registration, verification, login, privacy and account-management screens.
 - Add end-to-end API and mobile lifecycle tests.
