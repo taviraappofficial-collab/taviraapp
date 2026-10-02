@@ -8,10 +8,15 @@ import {
   Manrope_700Bold,
   useFonts as useManrope,
 } from '@expo-google-fonts/manrope';
+import { IdentitySessionProvider } from './identity-context';
 
 export default function Layout() {
   const [interLoaded] = useInter({ Inter_400Regular, Inter_600SemiBold });
   const [manropeLoaded] = useManrope({ Manrope_700Bold });
   if (!interLoaded || !manropeLoaded) return null;
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <IdentitySessionProvider>
+      <Stack screenOptions={{ headerShown: false }} />
+    </IdentitySessionProvider>
+  );
 }

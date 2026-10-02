@@ -1,17 +1,41 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { router } from 'expo-router';
-import { Button, TextInput } from '@tavira/ui';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Button, TextInput, Toast } from '@tavira/ui';
 import { IdentityScaffold, InlineLink, identityStyles } from './components';
 import { validateVerificationCode } from '../identity-model';
+import { identityApi, identityErrorMessage } from '../identity-api';
 
 export default function VerifyScreen() {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string>();
-  const submit = () => {
+  const [requestError, setRequestError] = useState<string>();
+  const [submitting, setSubmitting] = useState(false);
+  const params = useLocalSearchParams<{
+    challengeId?: string;
+    contact?: string;
+  }>();
+  const submit = async () => {
     const nextError = validateVerificationCode(code);
     setError(nextError);
-    if (!nextError) router.replace('/identity/account' as never);
+    if (nextError) return;
+    if (!params.challengeId) {
+      setRequestError('Start registration again to request a new code.');
+      return;
+    }
+    setSubmitting(true);
+    setRequestError(undefined);
+    try {
+      await identityApi.verifyContact({
+        challengeId: params.challengeId,
+        code,
+      });
+      router.replace('/identity/login' as never);
+    } catch (requestFailure: unknown) {
+      setRequestError(identityErrorMessage(requestFailure));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -35,7 +59,12 @@ export default function VerifyScreen() {
           setError(undefined);
         }}
       />
-      <Button label="Verify and continue" onPress={submit} />
+      {requestError ? <Toast tone="error" message={requestError} /> : null}
+      <Button
+        label="Verify and continue"
+        loading={submitting}
+        onPress={() => void submit()}
+      />
       <Text style={identityStyles.helper}>
         For your safety, TAVIRA support will never ask you to share this code.
       </Text>

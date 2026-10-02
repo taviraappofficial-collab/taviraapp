@@ -51,7 +51,7 @@ Expo Router screens now cover registration, contact verification, login, privacy
 - `/identity/privacy`
 - `/identity/account`
 
-The screens use shared TAVIRA tokens, accessible controls, mobile-safe validation models, and responsive web layouts. They currently operate as an interactive review journey; API transport and secure token persistence remain deliberately separate follow-up work.
+The screens use shared TAVIRA tokens, accessible controls, mobile-safe validation models, and responsive web layouts. They connect through the versioned identity API, persist session tokens with Expo SecureStore on native devices, keep web-review sessions in memory only, and expose `EXPO_PUBLIC_API_URL` for environment-specific API routing. The API allows only configured `CORS_ORIGINS` for browser clients.
 
 The verification-delivery adapter remains local-only and does not expose one-time codes in logs or responses.
 
@@ -67,5 +67,4 @@ The verification-delivery adapter remains local-only and does not expose one-tim
 - Select approved email/SMS verification providers and add rate limiting without exposing verification codes in logs or responses.
 - Select production email/SMS delivery providers and add provider-level abuse monitoring.
 - Add moderation review tooling and audit-event retention/export policy.
-- Connect the mobile identity journey to the API with secure device token storage.
 - Add end-to-end API and mobile lifecycle tests.

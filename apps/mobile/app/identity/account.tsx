@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
-import { Button } from '@tavira/ui';
+import { router } from 'expo-router';
+import { Button, Toast } from '@tavira/ui';
 import {
   IdentityScaffold,
   InlineLink,
@@ -8,24 +9,69 @@ import {
   identityStyles,
 } from './components';
 import { removeSession, type DeviceSessionView } from '../identity-model';
-
-const initialSessions: DeviceSessionView[] = [
-  {
-    sessionId: 'current-phone',
-    deviceName: 'Android phone',
-    createdAtLabel: 'Active now',
-    current: true,
-  },
-  {
-    sessionId: 'tablet',
-    deviceName: 'Chrome on Windows',
-    createdAtLabel: 'Signed in yesterday',
-    current: false,
-  },
-];
+import { identityApi, identityErrorMessage } from '../identity-api';
+import { useIdentitySession } from '../identity-context';
 
 export default function AccountScreen() {
-  const [sessions, setSessions] = useState(initialSessions);
+  const [sessions, setSessions] = useState<DeviceSessionView[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [requestError, setRequestError] = useState<string>();
+  const identitySession = useIdentitySession();
+  const { ready, session } = identitySession;
+  const loadSessions = useCallback(async () => {
+    if (!session) return;
+    setLoading(true);
+    try {
+      const result = await identityApi.listSessions(session.accessToken);
+      setSessions(
+        result.sessions.map((item) => ({
+          sessionId: item.sessionId,
+          deviceName: item.deviceName,
+          createdAtLabel: item.current
+            ? 'Active now'
+            : new Date(item.createdAt).toLocaleDateString(),
+          current: item.current,
+        })),
+      );
+    } catch (error: unknown) {
+      setRequestError(identityErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  }, [session]);
+  useEffect(() => {
+    if (!ready) return;
+    if (!session) {
+      router.replace('/identity/login' as never);
+      return;
+    }
+    void loadSessions();
+  }, [ready, session, loadSessions]);
+
+  const revoke = async (sessionId: string) => {
+    if (!session) return;
+    try {
+      await identityApi.revokeSession(session.accessToken, sessionId);
+      setSessions((current) => removeSession(current, sessionId));
+    } catch (error: unknown) {
+      setRequestError(identityErrorMessage(error));
+    }
+  };
+
+  const logoutAll = async () => {
+    if (!session) return;
+    try {
+      await identityApi.logoutAll(session.accessToken);
+    } catch (error: unknown) {
+      setRequestError(identityErrorMessage(error));
+    }
+    try {
+      await identitySession.clearSession();
+      router.replace('/identity/login' as never);
+    } catch (error: unknown) {
+      setRequestError(identityErrorMessage(error));
+    }
+  };
   return (
     <IdentityScaffold
       eyebrow="ACCOUNT & SECURITY"
@@ -41,25 +87,19 @@ export default function AccountScreen() {
       </View>
       <View style={identityStyles.fieldStack}>
         <Text style={identityStyles.sectionTitle}>Signed-in devices</Text>
+        {loading ? (
+          <Text style={identityStyles.helper}>Loading devices…</Text>
+        ) : null}
         {sessions.map((session) => (
           <SessionRow
             key={session.sessionId}
             session={session}
-            onRemove={() =>
-              setSessions((current) =>
-                removeSession(current, session.sessionId),
-              )
-            }
+            onRemove={() => void revoke(session.sessionId)}
           />
         ))}
       </View>
-      <Button
-        label="Sign out all other devices"
-        onPress={() =>
-          setSessions((current) => current.filter((session) => session.current))
-        }
-      />
-      <InlineLink href="/identity/login" label="Sign out of this device" />
+      {requestError ? <Toast tone="error" message={requestError} /> : null}
+      <Button label="Sign out all devices" onPress={() => void logoutAll()} />
     </IdentityScaffold>
   );
 }
