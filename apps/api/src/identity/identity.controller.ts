@@ -11,6 +11,7 @@ import {
   Put,
   Body,
   Headers,
+  Inject,
   UnauthorizedException,
 } from '@nestjs/common';
 import {
@@ -30,7 +31,9 @@ import { IdentityError, IdentityService } from './identity.service.js';
 
 @Controller('v1')
 export class IdentityController {
-  constructor(private readonly identity: IdentityService) {}
+  constructor(
+    @Inject(IdentityService) private readonly identity: IdentityService,
+  ) {}
 
   @Post('identity/register')
   register(@Body() body: unknown): Promise<unknown> {

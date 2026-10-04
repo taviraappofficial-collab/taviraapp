@@ -55,6 +55,8 @@ The screens use shared TAVIRA tokens, accessible controls, mobile-safe validatio
 
 The verification-delivery adapter remains local-only and does not expose one-time codes in logs or responses.
 
+Lifecycle coverage now exercises the identity API through an ephemeral HTTP server from registration and contact verification through multi-device login, refresh rotation, privacy updates, session revocation, and logout-all. Mobile lifecycle coverage verifies that login tokens are persisted, rotated tokens replace prior credentials, and logout clears the device vault.
+
 ## Local database review
 
 1. Copy `.env.example` to `.env` without committing it.
@@ -67,4 +69,3 @@ The verification-delivery adapter remains local-only and does not expose one-tim
 - Select approved email/SMS verification providers and add rate limiting without exposing verification codes in logs or responses.
 - Select production email/SMS delivery providers and add provider-level abuse monitoring.
 - Add moderation review tooling and audit-event retention/export policy.
-- Add end-to-end API and mobile lifecycle tests.
