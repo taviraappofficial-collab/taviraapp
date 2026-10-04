@@ -16,6 +16,26 @@ header > span {
   font-weight: 800;
   letter-spacing: 0.12em;
 }
+.brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.brand-row > span {
+  color: #ff5a5f;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+nav {
+  display: flex;
+  gap: 12px;
+}
+nav a {
+  color: #17133f;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
 h1 {
   color: #17133f;
   font-size: clamp(2rem, 7vw, 4rem);

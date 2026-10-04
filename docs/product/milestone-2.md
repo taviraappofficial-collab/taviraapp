@@ -68,7 +68,7 @@ Lifecycle coverage now exercises the identity API through an ephemeral HTTP serv
 
 The internal admin console presents the safety-report queue and supports transitions to reviewing, resolved, or dismissed. Microsoft Entra ID protects the API with single-tenant, audience-bound access tokens. The API validates RS256 signatures from the tenant-specific JWKS endpoint, exact issuer, audience, expiry, tenant, immutable object identity, authorized admin client (`azp`), and app roles. It fails closed unless the Entra tenant, API application, and admin client IDs are configured.
 
-`Tavira.Moderator` grants report listing and status transitions. `Tavira.AuditExporter` separately grants audit export, applying least privilege. Audit records use the immutable tenant and object IDs as the moderator identity rather than mutable email addresses.
+`Tavira.Moderator` grants report listing and status transitions. `Tavira.AuditExporter` separately grants audit export, applying least privilege. Audit records use the immutable tenant and object IDs as the moderator identity rather than mutable email addresses. The admin console uses the authorization-code flow with PKCE and state validation, exchanges codes only on the server, and stores the short-lived API access token in a secure HTTP-only SameSite cookie.
 
 - `GET /v1/admin/moderation/reports`
 - `PATCH /v1/admin/moderation/reports/:reportId`
@@ -80,5 +80,5 @@ Audit events are append-only and retained for seven years (2,555 days). Export i
 
 - Select approved email/SMS verification providers and implement production adapters without exposing verification codes in logs or responses.
 - Add provider-level abuse monitoring, delivery-status handling, and webhook verification.
-- Add the interactive Entra authorization-code/PKCE callback to the admin console. Until then, local review uses a short-lived access token supplied only to the server as `TAVIRA_ADMIN_ACCESS_TOKEN`; it must never use a `NEXT_PUBLIC_` variable.
+- Configure the Entra tenant, API scope, app roles, admin redirect URI, and production secret rotation policy before deployment.
 - Add automated audit archival, legal-hold enforcement, and cursor-based bulk export before production launch.

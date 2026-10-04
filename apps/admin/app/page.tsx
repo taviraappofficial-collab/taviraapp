@@ -1,4 +1,6 @@
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
+import { accessTokenCookie } from './auth/config';
 
 type Report = {
   id: string;
@@ -12,9 +14,12 @@ type Report = {
 
 async function loadReports(): Promise<{ reports: Report[]; error?: string }> {
   const apiUrl = process.env.TAVIRA_API_URL;
-  const accessToken = process.env.TAVIRA_ADMIN_ACCESS_TOKEN;
+  const accessToken = (await cookies()).get(accessTokenCookie)?.value;
   if (!apiUrl || !accessToken)
-    return { reports: [], error: 'Workforce sign-in token is not configured.' };
+    return {
+      reports: [],
+      error: 'Sign in with your TAVIRA workforce account to review reports.',
+    };
   try {
     const response = await fetch(
       `${apiUrl}/v1/admin/moderation/reports?limit=100`,
@@ -34,7 +39,7 @@ async function loadReports(): Promise<{ reports: Report[]; error?: string }> {
 async function updateReport(formData: FormData): Promise<void> {
   'use server';
   const apiUrl = process.env.TAVIRA_API_URL;
-  const accessToken = process.env.TAVIRA_ADMIN_ACCESS_TOKEN;
+  const accessToken = (await cookies()).get(accessTokenCookie)?.value;
   const reportId = String(formData.get('reportId') ?? '');
   const status = String(formData.get('status') ?? '');
   if (!apiUrl || !accessToken || !reportId) return;
@@ -57,7 +62,13 @@ export default async function Page() {
   return (
     <main>
       <header>
-        <span>TAVIRA</span>
+        <div className="brand-row">
+          <span>TAVIRA</span>
+          <nav>
+            <a href="/auth/login">Workforce sign in</a>
+            <a href="/auth/logout">Sign out</a>
+          </nav>
+        </div>
         <h1>Safety review</h1>
         <p>
           Oldest reports appear first. Every status change creates an audit
