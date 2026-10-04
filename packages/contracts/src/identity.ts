@@ -149,6 +149,37 @@ export const safetyReportResponseSchema = z.object({
   status: z.literal('submitted'),
 });
 
+export const reportStatusSchema = z.enum([
+  'submitted',
+  'reviewing',
+  'resolved',
+  'dismissed',
+]);
+
+export const moderationReportQuerySchema = z.object({
+  status: reportStatusSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+});
+
+export const updateModerationReportSchema = z.object({
+  status: z.enum(['reviewing', 'resolved', 'dismissed']),
+  note: z.string().trim().min(1).max(1000),
+});
+
+export const moderationReportParameterSchema = z.object({
+  reportId: z.uuid(),
+});
+
+export const auditExportQuerySchema = z
+  .object({
+    from: z.coerce.date(),
+    to: z.coerce.date(),
+    limit: z.coerce.number().int().min(1).max(1000).default(250),
+  })
+  .refine(({ from, to }) => from <= to, {
+    message: 'from must be before or equal to to',
+  });
+
 export type RegisterAccountRequest = z.infer<
   typeof registerAccountRequestSchema
 >;
@@ -169,3 +200,9 @@ export type UpdateProfileRequest = z.infer<typeof updateProfileRequestSchema>;
 export type UpdatePrivacyRequest = z.infer<typeof updatePrivacyRequestSchema>;
 export type ReportAccountRequest = z.infer<typeof reportAccountRequestSchema>;
 export type SafetyReportResponse = z.infer<typeof safetyReportResponseSchema>;
+export type ReportStatus = z.infer<typeof reportStatusSchema>;
+export type ModerationReportQuery = z.infer<typeof moderationReportQuerySchema>;
+export type UpdateModerationReport = z.infer<
+  typeof updateModerationReportSchema
+>;
+export type AuditExportQuery = z.infer<typeof auditExportQuerySchema>;

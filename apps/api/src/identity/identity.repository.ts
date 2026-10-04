@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { PublicProfile } from '@tavira/contracts';
+import type { PublicProfile, ReportStatus } from '@tavira/contracts';
 
 export type ProfileUpdate = Partial<
   Pick<PublicProfile, 'displayName' | 'bio' | 'avatarUrl'>
@@ -21,6 +21,18 @@ export type SafetyReportRecord = {
     | 'unsafe_content'
     | 'other';
   details: string | null;
+  status?: ReportStatus;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+export type AuditEventRecord = {
+  id: string;
+  actorAccountId: string | null;
+  action: string;
+  targetAccountId: string | null;
+  metadata: unknown;
+  createdAt: Date;
 };
 
 export type AccountRecord = {
@@ -135,6 +147,22 @@ export abstract class IdentityRepository {
     report: SafetyReportRecord,
     auditEventId: string,
   ): Promise<void>;
+  abstract listSafetyReports(
+    status: ReportStatus | undefined,
+    limit: number,
+  ): Promise<SafetyReportRecord[]>;
+  abstract updateSafetyReportStatus(
+    reportId: string,
+    status: Exclude<ReportStatus, 'submitted'>,
+    note: string,
+    reviewer: string,
+    auditEventId: string,
+  ): Promise<SafetyReportRecord | null>;
+  abstract listAuditEvents(
+    from: Date,
+    to: Date,
+    limit: number,
+  ): Promise<AuditEventRecord[]>;
 }
 
 @Injectable()
@@ -144,6 +172,7 @@ export class MemoryIdentityRepository extends IdentityRepository {
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly blocks = new Set<string>();
   private readonly reports = new Map<string, SafetyReportRecord>();
+  private readonly auditEvents = new Map<string, AuditEventRecord>();
 
   findAccountById(id: string): Promise<AccountRecord | null> {
     return Promise.resolve(this.accounts.get(id) ?? null);
@@ -374,5 +403,50 @@ export class MemoryIdentityRepository extends IdentityRepository {
     void _auditEventId;
     this.reports.set(report.id, report);
     return Promise.resolve();
+  }
+
+  listSafetyReports(
+    status: ReportStatus | undefined,
+    limit: number,
+  ): Promise<SafetyReportRecord[]> {
+    return Promise.resolve(
+      [...this.reports.values()]
+        .filter((report) => status === undefined || report.status === status)
+        .slice(0, limit),
+    );
+  }
+
+  updateSafetyReportStatus(
+    reportId: string,
+    status: Exclude<ReportStatus, 'submitted'>,
+    note: string,
+    reviewer: string,
+    auditEventId: string,
+  ): Promise<SafetyReportRecord | null> {
+    const report = this.reports.get(reportId);
+    if (!report) return Promise.resolve(null);
+    report.status = status;
+    report.updatedAt = new Date();
+    this.auditEvents.set(auditEventId, {
+      id: auditEventId,
+      actorAccountId: null,
+      action: 'safety.report_status_updated',
+      targetAccountId: report.targetAccountId,
+      metadata: { reportId, status, note, reviewer },
+      createdAt: new Date(),
+    });
+    return Promise.resolve(report);
+  }
+
+  listAuditEvents(
+    from: Date,
+    to: Date,
+    limit: number,
+  ): Promise<AuditEventRecord[]> {
+    return Promise.resolve(
+      [...this.auditEvents.values()]
+        .filter((event) => event.createdAt >= from && event.createdAt <= to)
+        .slice(0, limit),
+    );
   }
 }

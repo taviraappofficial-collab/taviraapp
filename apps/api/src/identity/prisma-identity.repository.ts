@@ -5,6 +5,7 @@ import {
   IdentityRepository,
   IdentityRepositoryConflictError,
   type AccountRecord,
+  type AuditEventRecord,
   type ChallengeRecord,
   type PrivacyUpdate,
   type ProfileUpdate,
@@ -364,6 +365,57 @@ export class PrismaIdentityRepository extends IdentityRepository {
         },
       }),
     ]);
+  }
+
+  listSafetyReports(
+    status: import('@tavira/contracts').ReportStatus | undefined,
+    limit: number,
+  ): Promise<SafetyReportRecord[]> {
+    return this.prisma.safetyReport.findMany({
+      where: status ? { status } : {},
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+  }
+
+  updateSafetyReportStatus(
+    reportId: string,
+    status: 'reviewing' | 'resolved' | 'dismissed',
+    note: string,
+    reviewer: string,
+    auditEventId: string,
+  ): Promise<SafetyReportRecord | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.safetyReport.updateMany({
+        where: { id: reportId },
+        data: { status },
+      });
+      if (updated.count !== 1) return null;
+      const report = await tx.safetyReport.findUniqueOrThrow({
+        where: { id: reportId },
+      });
+      await tx.auditEvent.create({
+        data: {
+          id: auditEventId,
+          action: 'safety.report_status_updated',
+          targetAccountId: report.targetAccountId,
+          metadata: { reportId, status, note, reviewer },
+        },
+      });
+      return report;
+    });
+  }
+
+  listAuditEvents(
+    from: Date,
+    to: Date,
+    limit: number,
+  ): Promise<AuditEventRecord[]> {
+    return this.prisma.auditEvent.findMany({
+      where: { createdAt: { gte: from, lte: to } },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
   }
 
   private toAccount(

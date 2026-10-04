@@ -64,8 +64,19 @@ Lifecycle coverage now exercises the identity API through an ephemeral HTTP serv
 3. Run `pnpm db:validate` and `pnpm db:generate`.
 4. Run `pnpm db:migrate` to apply `infra/migrations/0001_identity_foundation/migration.sql`.
 
+## Moderation and audit operations
+
+The internal admin console presents the safety-report queue and supports transitions to reviewing, resolved, or dismissed. Internal endpoints fail closed unless `TAVIRA_ADMIN_API_KEY` is configured with at least 32 characters. The Next.js console reads the key only on the server; it is never emitted as a public environment variable or browser credential.
+
+- `GET /v1/admin/moderation/reports`
+- `PATCH /v1/admin/moderation/reports/:reportId`
+- `GET /v1/admin/audit-events/export?from=<date>&to=<date>`
+
+Audit events are append-only and retained for seven years (2,555 days). Export is JSON, date-bounded, limited to 1,000 records per request, and protected by the internal admin boundary. Automated archival and legal-hold workflows remain infrastructure work before production launch.
+
 ## Required follow-up before Milestone 2 exit
 
 - Select approved email/SMS verification providers and implement production adapters without exposing verification codes in logs or responses.
 - Add provider-level abuse monitoring, delivery-status handling, and webhook verification.
-- Add moderation review tooling and audit-event retention/export policy.
+- Replace the shared internal admin key with workforce SSO, named moderator identities, and role-based permissions before production launch.
+- Add automated audit archival, legal-hold enforcement, and cursor-based bulk export before production launch.

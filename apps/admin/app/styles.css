@@ -1,17 +1,17 @@
 :root {
   color: #151421;
-  background: #faf9fc;
+  background: #f6f5fa;
   font-family: Inter, system-ui, sans-serif;
 }
 body {
   margin: 0;
 }
 main {
-  margin: 12vh auto;
-  max-width: 720px;
-  padding: 32px;
+  margin: 6vh auto;
+  max-width: 960px;
+  padding: 24px;
 }
-span {
+header > span {
   color: #ff5a5f;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -19,5 +19,73 @@ span {
 h1 {
   color: #17133f;
   font-size: clamp(2rem, 7vw, 4rem);
-  margin: 12px 0;
+  margin: 12px 0 4px;
+}
+header p {
+  color: #625f70;
+}
+section {
+  display: grid;
+  gap: 16px;
+  margin-top: 32px;
+}
+article {
+  background: white;
+  border: 1px solid #e5e2ed;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 8px 24px #17133f0a;
+}
+.report-heading {
+  display: flex;
+  justify-content: space-between;
+  text-transform: capitalize;
+}
+small {
+  background: #f0edf8;
+  border-radius: 999px;
+  color: #443b68;
+  padding: 5px 10px;
+}
+dl {
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+dl div {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+}
+dt {
+  color: #777282;
+}
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+button {
+  background: #17133f;
+  border: 0;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  padding: 9px 14px;
+}
+button.quiet {
+  background: #e9e6ee;
+  color: #312d3a;
+}
+.notice {
+  background: #fff2cf;
+  border-radius: 10px;
+  padding: 14px;
+}
+.empty {
+  color: #777282;
 }
