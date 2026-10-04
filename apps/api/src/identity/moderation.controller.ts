@@ -9,7 +9,6 @@ import {
   Param,
   Patch,
   Query,
-  UnauthorizedException,
 } from '@nestjs/common';
 import {
   auditExportQuerySchema,
@@ -17,21 +16,24 @@ import {
   moderationReportParameterSchema,
   updateModerationReportSchema,
 } from '@tavira/contracts';
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { IdentityRepository } from './identity.repository.js';
+import { WorkforceAuthenticator } from './workforce-auth.js';
 
 @Controller('v1/admin')
 export class ModerationController {
   constructor(
     @Inject(IdentityRepository) private readonly repository: IdentityRepository,
+    @Inject(WorkforceAuthenticator)
+    private readonly workforce: WorkforceAuthenticator,
   ) {}
 
   @Get('moderation/reports')
   async reports(
-    @Headers('x-tavira-admin-key') key: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
     @Query() query: unknown,
   ): Promise<unknown> {
-    assertAdminKey(key);
+    await this.workforce.authorize(authorization, 'Tavira.Moderator');
     const parsed = moderationReportQuerySchema.safeParse(query);
     if (!parsed.success)
       throw new BadRequestException({ code: 'REQUEST_INVALID' });
@@ -46,12 +48,14 @@ export class ModerationController {
 
   @Patch('moderation/reports/:reportId')
   async updateReport(
-    @Headers('x-tavira-admin-key') key: string | undefined,
-    @Headers('x-tavira-admin-actor') actor: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
     @Param('reportId') reportId: string,
     @Body() body: unknown,
   ): Promise<unknown> {
-    assertAdminKey(key);
+    const principal = await this.workforce.authorize(
+      authorization,
+      'Tavira.Moderator',
+    );
     const parsedParams = moderationReportParameterSchema.safeParse({
       reportId,
     });
@@ -63,7 +67,7 @@ export class ModerationController {
       parsedParams.data.reportId,
       input.status,
       input.note,
-      actor?.trim().slice(0, 100) || 'internal-admin',
+      principal.id,
       randomUUID(),
     );
     if (!report) throw new NotFoundException({ code: 'REPORT_NOT_FOUND' });
@@ -72,10 +76,10 @@ export class ModerationController {
 
   @Get('audit-events/export')
   async exportAuditEvents(
-    @Headers('x-tavira-admin-key') key: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
     @Query() query: unknown,
   ): Promise<unknown> {
-    assertAdminKey(key);
+    await this.workforce.authorize(authorization, 'Tavira.AuditExporter');
     const parsed = auditExportQuerySchema.safeParse(query);
     if (!parsed.success)
       throw new BadRequestException({ code: 'REQUEST_INVALID' });
@@ -88,17 +92,5 @@ export class ModerationController {
         input.limit,
       ),
     };
-  }
-}
-
-function assertAdminKey(presented: string | undefined): void {
-  const configured = process.env.TAVIRA_ADMIN_API_KEY;
-  if (!configured || configured.length < 32 || !presented) {
-    throw new UnauthorizedException({ code: 'ADMIN_AUTH_REQUIRED' });
-  }
-  const expectedHash = createHash('sha256').update(configured).digest();
-  const presentedHash = createHash('sha256').update(presented).digest();
-  if (!timingSafeEqual(expectedHash, presentedHash)) {
-    throw new UnauthorizedException({ code: 'ADMIN_AUTH_INVALID' });
   }
 }

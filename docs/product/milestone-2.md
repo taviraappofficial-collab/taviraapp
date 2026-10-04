@@ -66,7 +66,9 @@ Lifecycle coverage now exercises the identity API through an ephemeral HTTP serv
 
 ## Moderation and audit operations
 
-The internal admin console presents the safety-report queue and supports transitions to reviewing, resolved, or dismissed. Internal endpoints fail closed unless `TAVIRA_ADMIN_API_KEY` is configured with at least 32 characters. The Next.js console reads the key only on the server; it is never emitted as a public environment variable or browser credential.
+The internal admin console presents the safety-report queue and supports transitions to reviewing, resolved, or dismissed. Microsoft Entra ID protects the API with single-tenant, audience-bound access tokens. The API validates RS256 signatures from the tenant-specific JWKS endpoint, exact issuer, audience, expiry, tenant, immutable object identity, authorized admin client (`azp`), and app roles. It fails closed unless the Entra tenant, API application, and admin client IDs are configured.
+
+`Tavira.Moderator` grants report listing and status transitions. `Tavira.AuditExporter` separately grants audit export, applying least privilege. Audit records use the immutable tenant and object IDs as the moderator identity rather than mutable email addresses.
 
 - `GET /v1/admin/moderation/reports`
 - `PATCH /v1/admin/moderation/reports/:reportId`
@@ -78,5 +80,5 @@ Audit events are append-only and retained for seven years (2,555 days). Export i
 
 - Select approved email/SMS verification providers and implement production adapters without exposing verification codes in logs or responses.
 - Add provider-level abuse monitoring, delivery-status handling, and webhook verification.
-- Replace the shared internal admin key with workforce SSO, named moderator identities, and role-based permissions before production launch.
+- Add the interactive Entra authorization-code/PKCE callback to the admin console. Until then, local review uses a short-lived access token supplied only to the server as `TAVIRA_ADMIN_ACCESS_TOKEN`; it must never use a `NEXT_PUBLIC_` variable.
 - Add automated audit archival, legal-hold enforcement, and cursor-based bulk export before production launch.

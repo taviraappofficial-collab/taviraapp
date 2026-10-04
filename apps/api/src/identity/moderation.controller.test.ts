@@ -1,33 +1,72 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { MemoryIdentityRepository } from './identity.repository.js';
 import { ModerationController } from './moderation.controller.js';
+import {
+  type WorkforcePrincipal,
+  type WorkforceRole,
+  WorkforceAuthenticator,
+} from './workforce-auth.js';
 
-const key = 'a-secure-development-admin-key-123456';
+const token = 'Bearer verified-workforce-token';
+
+class TestWorkforceAuthenticator extends WorkforceAuthenticator {
+  constructor(private readonly roles: WorkforceRole[]) {
+    super();
+  }
+
+  authorize(
+    _authorization: string | undefined,
+    requiredRole: WorkforceRole,
+  ): Promise<WorkforcePrincipal> {
+    if (!this.roles.includes(requiredRole))
+      return Promise.reject(
+        Object.assign(new Error('role required'), { status: 401 }),
+      );
+    return Promise.resolve({
+      id: 'tenant-id:moderator-object-id',
+      displayName: 'moderator@example.test',
+      roles: this.roles,
+    });
+  }
+}
 
 describe('ModerationController', () => {
-  afterEach(() => delete process.env.TAVIRA_ADMIN_API_KEY);
-
-  it('fails closed when the admin key is not configured', async () => {
-    const controller = new ModerationController(new MemoryIdentityRepository());
-    await expect(controller.reports(key, {})).rejects.toMatchObject({
+  it('prevents moderators without the export role from exporting audit data', async () => {
+    const controller = new ModerationController(
+      new MemoryIdentityRepository(),
+      new TestWorkforceAuthenticator(['Tavira.Moderator']),
+    );
+    await expect(
+      controller.exportAuditEvents(token, {
+        from: '2020-01-01T00:00:00.000Z',
+        to: '2030-01-01T00:00:00.000Z',
+      }),
+    ).rejects.toMatchObject({
       status: 401,
     });
   });
 
   it('rejects malformed input before querying persistence', async () => {
-    process.env.TAVIRA_ADMIN_API_KEY = key;
-    const controller = new ModerationController(new MemoryIdentityRepository());
+    const controller = new ModerationController(
+      new MemoryIdentityRepository(),
+      new TestWorkforceAuthenticator(['Tavira.Moderator']),
+    );
     await expect(
-      controller.reports(key, { limit: '101' }),
+      controller.reports(token, { limit: '101' }),
     ).rejects.toMatchObject({
       status: 400,
     });
   });
 
   it('reviews reports and exposes the resulting audit event', async () => {
-    process.env.TAVIRA_ADMIN_API_KEY = key;
     const repository = new MemoryIdentityRepository();
-    const controller = new ModerationController(repository);
+    const controller = new ModerationController(
+      repository,
+      new TestWorkforceAuthenticator([
+        'Tavira.Moderator',
+        'Tavira.AuditExporter',
+      ]),
+    );
     await repository.createSafetyReport(
       {
         id: '3d21d72f-4a16-4395-ac79-c2e333e31f16',
@@ -41,17 +80,16 @@ describe('ModerationController', () => {
       crypto.randomUUID(),
     );
 
-    const listing = (await controller.reports(key, {})) as {
+    const listing = (await controller.reports(token, {})) as {
       reports: unknown[];
     };
     expect(listing.reports).toHaveLength(1);
     await controller.updateReport(
-      key,
-      'moderator@example.test',
+      token,
       '3d21d72f-4a16-4395-ac79-c2e333e31f16',
       { status: 'reviewing', note: 'Triage started' },
     );
-    const exported = (await controller.exportAuditEvents(key, {
+    const exported = (await controller.exportAuditEvents(token, {
       from: '2020-01-01T00:00:00.000Z',
       to: '2030-01-01T00:00:00.000Z',
     })) as { events: unknown[] };

@@ -4,6 +4,10 @@ import { IdentityController } from './identity.controller.js';
 import { IdentityRepository } from './identity.repository.js';
 import { IdentityService } from './identity.service.js';
 import { ModerationController } from './moderation.controller.js';
+import {
+  EntraWorkforceAuthenticator,
+  WorkforceAuthenticator,
+} from './workforce-auth.js';
 import { PrismaIdentityRepository } from './prisma-identity.repository.js';
 import {
   DevelopmentVerificationDelivery,
@@ -14,6 +18,11 @@ import {
   controllers: [IdentityController, ModerationController],
   providers: [
     IdentityService,
+    EntraWorkforceAuthenticator,
+    {
+      provide: WorkforceAuthenticator,
+      useExisting: EntraWorkforceAuthenticator,
+    },
     {
       provide: VerificationDelivery,
       useClass: DevelopmentVerificationDelivery,

@@ -12,14 +12,14 @@ type Report = {
 
 async function loadReports(): Promise<{ reports: Report[]; error?: string }> {
   const apiUrl = process.env.TAVIRA_API_URL;
-  const apiKey = process.env.TAVIRA_ADMIN_API_KEY;
-  if (!apiUrl || !apiKey)
-    return { reports: [], error: 'Admin API is not configured.' };
+  const accessToken = process.env.TAVIRA_ADMIN_ACCESS_TOKEN;
+  if (!apiUrl || !accessToken)
+    return { reports: [], error: 'Workforce sign-in token is not configured.' };
   try {
     const response = await fetch(
       `${apiUrl}/v1/admin/moderation/reports?limit=100`,
       {
-        headers: { 'x-tavira-admin-key': apiKey },
+        headers: { authorization: `Bearer ${accessToken}` },
         cache: 'no-store',
       },
     );
@@ -34,16 +34,15 @@ async function loadReports(): Promise<{ reports: Report[]; error?: string }> {
 async function updateReport(formData: FormData): Promise<void> {
   'use server';
   const apiUrl = process.env.TAVIRA_API_URL;
-  const apiKey = process.env.TAVIRA_ADMIN_API_KEY;
+  const accessToken = process.env.TAVIRA_ADMIN_ACCESS_TOKEN;
   const reportId = String(formData.get('reportId') ?? '');
   const status = String(formData.get('status') ?? '');
-  if (!apiUrl || !apiKey || !reportId) return;
+  if (!apiUrl || !accessToken || !reportId) return;
   await fetch(`${apiUrl}/v1/admin/moderation/reports/${reportId}`, {
     method: 'PATCH',
     headers: {
       'content-type': 'application/json',
-      'x-tavira-admin-key': apiKey,
-      'x-tavira-admin-actor': 'admin-console',
+      authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify({
       status,
