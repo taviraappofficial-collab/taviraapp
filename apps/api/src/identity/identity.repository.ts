@@ -73,7 +73,7 @@ export abstract class IdentityRepository {
   ): Promise<ChallengeRecord | null>;
   abstract countChallengesSince(
     accountId: string,
-    purpose: ChallengeRecord['purpose'],
+    purpose: ChallengeRecord['purpose'] | undefined,
     since: Date,
   ): Promise<number>;
   abstract incrementChallengeAttempts(id: string): Promise<number>;
@@ -199,14 +199,14 @@ export class MemoryIdentityRepository extends IdentityRepository {
 
   countChallengesSince(
     accountId: string,
-    purpose: ChallengeRecord['purpose'],
+    purpose: ChallengeRecord['purpose'] | undefined,
     since: Date,
   ): Promise<number> {
     return Promise.resolve(
       [...this.challenges.values()].filter(
         (challenge) =>
           challenge.accountId === accountId &&
-          challenge.purpose === purpose &&
+          (purpose === undefined || challenge.purpose === purpose) &&
           challenge.createdAt.getTime() >= since.getTime(),
       ).length,
     );

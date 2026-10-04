@@ -10,12 +10,13 @@ import type {
 import { IdentityController } from './identity.controller.js';
 import { MemoryIdentityRepository } from './identity.repository.js';
 import { IdentityService } from './identity.service.js';
+import type { VerificationDeliveryRequest } from './verification-delivery.js';
 
 class CapturingDelivery {
   latestCode = '';
 
-  send(_contact: string, code: string): void {
-    this.latestCode = code;
+  send(request: VerificationDeliveryRequest): void {
+    this.latestCode = request.code;
   }
 }
 

@@ -108,11 +108,15 @@ export class PrismaIdentityRepository extends IdentityRepository {
 
   countChallengesSince(
     accountId: string,
-    purpose: ChallengeRecord['purpose'],
+    purpose: ChallengeRecord['purpose'] | undefined,
     since: Date,
   ): Promise<number> {
     return this.prisma.verificationChallenge.count({
-      where: { accountId, purpose, createdAt: { gte: since } },
+      where: {
+        accountId,
+        ...(purpose === undefined ? {} : { purpose }),
+        createdAt: { gte: since },
+      },
     });
   }
 

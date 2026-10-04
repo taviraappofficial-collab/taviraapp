@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { MemoryIdentityRepository } from './identity.repository.js';
 import { IdentityError, IdentityService } from './identity.service.js';
+import type { VerificationDeliveryRequest } from './verification-delivery.js';
 
 class CapturingDelivery {
   latestCode = '';
+  latestRequest: VerificationDeliveryRequest | undefined;
   deliveries = 0;
-  send(_contact: string, code: string): void {
-    this.latestCode = code;
+  send(request: VerificationDeliveryRequest): void {
+    this.latestCode = request.code;
+    this.latestRequest = request;
     this.deliveries += 1;
   }
 }
@@ -19,11 +22,17 @@ const registration = {
   handle: 'ada_okafor',
 };
 
-function setup(): { service: IdentityService; delivery: CapturingDelivery } {
+function setup(): {
+  service: IdentityService;
+  delivery: CapturingDelivery;
+  repository: MemoryIdentityRepository;
+} {
   const delivery = new CapturingDelivery();
+  const repository = new MemoryIdentityRepository();
   return {
-    service: new IdentityService(delivery, new MemoryIdentityRepository()),
+    service: new IdentityService(delivery, repository),
     delivery,
+    repository,
   };
 }
 
@@ -31,6 +40,14 @@ describe('IdentityService', () => {
   it('keeps contact, creator, badge, and seller verification states separate', async () => {
     const { service, delivery } = setup();
     const result = await service.register(registration);
+    expect(delivery.latestRequest).toMatchObject({
+      accountId: result.accountId,
+      contactType: 'email',
+      contact: 'ada@example.com',
+      purpose: 'contact_verification',
+      code: expect.stringMatching(/^\d{6}$/) as string,
+      expiresAt: expect.any(Date) as Date,
+    });
     await expect(
       service.login({
         contact: registration.contact,
@@ -232,6 +249,33 @@ describe('IdentityService', () => {
       await service.requestPasswordReset(registration.contact);
 
     expect(delivery.deliveries).toBe(initialDeliveries + 3);
+  });
+
+  it('enforces the account-wide daily verification delivery limit', async () => {
+    const { service, delivery, repository } = setup();
+    const result = await service.register(registration);
+    await service.verifyContact({
+      challengeId: result.verificationChallengeId,
+      code: delivery.latestCode,
+    });
+    const createdAt = new Date();
+    for (let index = 0; index < 9; index += 1) {
+      await repository.createChallenge({
+        id: `daily-limit-${index}`,
+        accountId: result.accountId,
+        purpose: 'contact_verification',
+        codeHash: '0'.repeat(64),
+        expiresAt: new Date(createdAt.getTime() + 10 * 60_000),
+        attempts: 0,
+        consumedAt: null,
+        createdAt,
+      });
+    }
+
+    await expect(
+      service.requestPasswordReset(registration.contact),
+    ).resolves.toEqual({ accepted: true });
+    expect(delivery.deliveries).toBe(1);
   });
 
   it('updates profile fields and enforces private profile visibility', async () => {

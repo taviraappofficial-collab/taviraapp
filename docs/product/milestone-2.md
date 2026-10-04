@@ -53,7 +53,7 @@ Expo Router screens now cover registration, contact verification, login, privacy
 
 The screens use shared TAVIRA tokens, accessible controls, mobile-safe validation models, and responsive web layouts. They connect through the versioned identity API, persist session tokens with Expo SecureStore on native devices, keep web-review sessions in memory only, and expose `EXPO_PUBLIC_API_URL` for environment-specific API routing. The API allows only configured `CORS_ORIGINS` for browser clients.
 
-The verification-delivery adapter remains local-only and does not expose one-time codes in logs or responses.
+Verification delivery now sits behind a typed provider boundary carrying the channel, purpose, expiry, and one-time code. The local adapter logs only masked routing metadata and never exposes codes in logs or responses. Durable challenge records enforce no more than three deliveries per purpose per hour and ten total deliveries per account per day, including across API restarts.
 
 Lifecycle coverage now exercises the identity API through an ephemeral HTTP server from registration and contact verification through multi-device login, refresh rotation, privacy updates, session revocation, and logout-all. Mobile lifecycle coverage verifies that login tokens are persisted, rotated tokens replace prior credentials, and logout clears the device vault.
 
@@ -66,6 +66,6 @@ Lifecycle coverage now exercises the identity API through an ephemeral HTTP serv
 
 ## Required follow-up before Milestone 2 exit
 
-- Select approved email/SMS verification providers and add rate limiting without exposing verification codes in logs or responses.
-- Select production email/SMS delivery providers and add provider-level abuse monitoring.
+- Select approved email/SMS verification providers and implement production adapters without exposing verification codes in logs or responses.
+- Add provider-level abuse monitoring, delivery-status handling, and webhook verification.
 - Add moderation review tooling and audit-event retention/export policy.

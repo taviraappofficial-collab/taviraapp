@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type {
   DeviceSessionList,
   LoginRequest,
@@ -26,6 +26,10 @@ import {
   type AccountRecord,
   type SessionRecord,
 } from './identity.repository.js';
+import {
+  canDeliverVerification,
+  VerificationDelivery,
+} from './verification-delivery.js';
 
 export class IdentityError extends Error {
   constructor(readonly code: string) {
@@ -33,25 +37,12 @@ export class IdentityError extends Error {
   }
 }
 
-export interface VerificationDelivery {
-  send(contact: string, code: string): void;
-}
-
-@Injectable()
-export class DevelopmentVerificationDelivery implements VerificationDelivery {
-  send(contact: string, code: string): void {
-    // Provider integration is deliberately deferred; never log the one-time code.
-    void code;
-    console.info('identity.verification.requested', {
-      contact: maskContact(contact),
-    });
-  }
-}
-
 @Injectable()
 export class IdentityService {
   constructor(
-    private readonly delivery: DevelopmentVerificationDelivery,
+    @Inject(VerificationDelivery)
+    private readonly delivery: VerificationDelivery,
+    @Inject(IdentityRepository)
     private readonly repository: IdentityRepository,
   ) {}
 
@@ -104,7 +95,14 @@ export class IdentityService {
         throw new IdentityError('CONTACT_OR_HANDLE_UNAVAILABLE');
       throw error;
     }
-    this.delivery.send(contact, code);
+    await this.delivery.send({
+      accountId,
+      contactType: input.contactType,
+      contact,
+      purpose: 'contact_verification',
+      code,
+      expiresAt: new Date(createdAt.getTime() + 10 * 60_000),
+    });
     return {
       accountId,
       verificationChallengeId: challengeId,
@@ -175,12 +173,15 @@ export class IdentityService {
     if (!account || account.status !== 'active') return { accepted: true };
 
     const now = new Date();
-    const recent = await this.repository.countChallengesSince(
-      account.id,
-      'password_reset',
-      new Date(now.getTime() - 60 * 60_000),
-    );
-    if (recent >= 3) return { accepted: true };
+    if (
+      !(await canDeliverVerification(
+        this.repository,
+        account.id,
+        'password_reset',
+        now,
+      ))
+    )
+      return { accepted: true };
 
     const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
     await this.repository.createChallenge({
@@ -193,7 +194,14 @@ export class IdentityService {
       consumedAt: null,
       createdAt: now,
     });
-    this.delivery.send(contact, code);
+    await this.delivery.send({
+      accountId: account.id,
+      contactType: account.contactType,
+      contact,
+      purpose: 'password_reset',
+      code,
+      expiresAt: new Date(now.getTime() + 10 * 60_000),
+    });
     return { accepted: true };
   }
 
@@ -440,11 +448,6 @@ function safeEqual(left: string, right: string): boolean {
     leftBuffer.length === rightBuffer.length &&
     timingSafeEqual(leftBuffer, rightBuffer)
   );
-}
-
-function maskContact(contact: string): string {
-  const visible = contact.slice(-3);
-  return `${'*'.repeat(Math.max(3, contact.length - 3))}${visible}`;
 }
 
 function uuidV7(): string {
