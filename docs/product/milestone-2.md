@@ -66,9 +66,9 @@ Lifecycle coverage now exercises the identity API through an ephemeral HTTP serv
 
 ## Moderation and audit operations
 
-The internal admin console presents the safety-report queue and supports transitions to reviewing, resolved, or dismissed. Microsoft Entra ID protects the API with single-tenant, audience-bound access tokens. The API validates RS256 signatures from the tenant-specific JWKS endpoint, exact issuer, audience, expiry, tenant, immutable object identity, authorized admin client (`azp`), and app roles. It fails closed unless the Entra tenant, API application, and admin client IDs are configured.
+The internal admin console presents the safety-report queue and supports transitions to reviewing, resolved, or dismissed. Supabase Auth protects the API with audience-bound access tokens. The API validates ES256 or RS256 signatures from the project JWKS endpoint, exact issuer, the `authenticated` audience, expiry, immutable subject identity, and administrator-controlled roles in `app_metadata`. It fails closed unless the Supabase project URL is configured.
 
-`Tavira.Moderator` grants report listing and status transitions. `Tavira.AuditExporter` separately grants audit export, applying least privilege. Audit records use the immutable tenant and object IDs as the moderator identity rather than mutable email addresses. The admin console uses the authorization-code flow with PKCE and state validation, exchanges codes only on the server, and stores the short-lived API access token in a secure HTTP-only SameSite cookie.
+`Tavira.Moderator` grants report listing and status transitions. `Tavira.AuditExporter` separately grants audit export, applying least privilege. Audit records use the immutable Supabase subject ID as the moderator identity rather than mutable email addresses. The admin console exchanges workforce credentials with Supabase only on the server and stores access and refresh tokens in secure HTTP-only SameSite cookies.
 
 - `GET /v1/admin/moderation/reports`
 - `PATCH /v1/admin/moderation/reports/:reportId`
@@ -80,5 +80,6 @@ Audit events are append-only and retained for seven years (2,555 days). Export i
 
 - Select approved email/SMS verification providers and implement production adapters without exposing verification codes in logs or responses.
 - Add provider-level abuse monitoring, delivery-status handling, and webhook verification.
-- Configure the Entra tenant, API scope, app roles, admin redirect URI, and production secret rotation policy before deployment.
+- Configure the Supabase project URL and anon key, disable public admin-user registration, provision workforce accounts explicitly, and assign roles only through protected `app_metadata` before deployment.
+- For non-production testing, `pnpm dev:seed-workforce` provisions neutral `moderator@tavira.test` and `auditor@tavira.test` identities with separate least-privilege roles. Run it only with a server-side service-role key and remove that key after provisioning.
 - Add automated audit archival, legal-hold enforcement, and cursor-based bulk export before production launch.

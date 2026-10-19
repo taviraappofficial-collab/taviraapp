@@ -17,58 +17,62 @@ export abstract class WorkforceAuthenticator {
 }
 
 @Injectable()
-export class EntraWorkforceAuthenticator extends WorkforceAuthenticator {
+export class SupabaseWorkforceAuthenticator extends WorkforceAuthenticator {
   private verifier?: ReturnType<typeof createRemoteJWKSet>;
 
   async authorize(
     authorization: string | undefined,
     requiredRole: WorkforceRole,
   ): Promise<WorkforcePrincipal> {
-    const tenantId = process.env.ENTRA_TENANT_ID;
-    const audience = process.env.ENTRA_API_CLIENT_ID;
-    const authorizedClientId = process.env.ENTRA_ADMIN_CLIENT_ID;
-    if (!isUuid(tenantId) || !isUuid(audience) || !isUuid(authorizedClientId))
-      throw authError('WORKFORCE_AUTH_UNAVAILABLE');
+    const supabaseUrl = normalizeSupabaseUrl(process.env.SUPABASE_URL);
+    if (!supabaseUrl) throw authError('WORKFORCE_AUTH_UNAVAILABLE');
     const token = readBearerToken(authorization);
-    const issuer = `https://login.microsoftonline.com/${tenantId}/v2.0`;
+    const issuer = `${supabaseUrl}/auth/v1`;
     this.verifier ??= createRemoteJWKSet(
-      new URL(
-        `https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`,
-      ),
+      new URL(`${issuer}/.well-known/jwks.json`),
       { timeoutDuration: 5000, cooldownDuration: 30000, cacheMaxAge: 3600000 },
     );
     try {
       const { payload } = await jwtVerify(token, this.verifier, {
-        algorithms: ['RS256'],
+        algorithms: ['ES256', 'RS256'],
         issuer,
-        audience,
-        requiredClaims: ['tid', 'oid', 'roles', 'azp'],
+        audience: 'authenticated',
+        requiredClaims: ['sub', 'app_metadata'],
         clockTolerance: 30,
       });
-      if (
-        payload.tid !== tenantId ||
-        payload.azp !== authorizedClientId ||
-        typeof payload.oid !== 'string' ||
-        !isUuid(payload.oid)
-      )
+      if (typeof payload.sub !== 'string' || !isUuid(payload.sub))
         throw authError('WORKFORCE_TOKEN_INVALID');
-      const roles = Array.isArray(payload.roles)
-        ? payload.roles.filter(isWorkforceRole)
+      const metadata = isRecord(payload.app_metadata)
+        ? payload.app_metadata
+        : {};
+      const roles = Array.isArray(metadata.roles)
+        ? metadata.roles.filter(isWorkforceRole)
         : [];
       if (!roles.includes(requiredRole))
         throw authError('WORKFORCE_ROLE_REQUIRED');
       const name =
-        typeof payload.preferred_username === 'string'
-          ? payload.preferred_username
-          : typeof payload.name === 'string'
-            ? payload.name
-            : payload.oid;
-      return { id: `${tenantId}:${payload.oid}`, displayName: name, roles };
+        typeof payload.email === 'string' ? payload.email : payload.sub;
+      return { id: `supabase:${payload.sub}`, displayName: name, roles };
     } catch (error: unknown) {
       if (error instanceof UnauthorizedException) throw error;
       throw authError('WORKFORCE_TOKEN_INVALID');
     }
   }
+}
+
+function normalizeSupabaseUrl(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:') return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function readBearerToken(authorization: string | undefined): string {

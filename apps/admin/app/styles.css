@@ -109,3 +109,42 @@ button.quiet {
 .empty {
   color: #777282;
 }
+.sign-in-shell {
+  display: grid;
+  min-height: 80vh;
+  place-items: center;
+}
+.sign-in-card {
+  background: white;
+  border: 1px solid #e5e2ed;
+  border-radius: 18px;
+  box-shadow: 0 16px 48px #17133f14;
+  display: block;
+  max-width: 420px;
+  padding: 32px;
+  width: 100%;
+}
+.wordmark {
+  color: #ff5a5f;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+.sign-in-card h1 {
+  font-size: 2.25rem;
+}
+.sign-in-form {
+  display: grid;
+}
+.sign-in-form label {
+  color: #443f50;
+  display: grid;
+  font-size: 0.9rem;
+  font-weight: 700;
+  gap: 6px;
+}
+.sign-in-form input {
+  border: 1px solid #cfcbd7;
+  border-radius: 8px;
+  font: inherit;
+  padding: 11px 12px;
+}

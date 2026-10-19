@@ -10,6 +10,7 @@
     "db:generate": "pnpm --filter @tavira/api prisma:generate",
     "db:migrate": "pnpm --filter @tavira/api migrate:deploy",
     "db:validate": "pnpm --filter @tavira/api prisma:validate",
+    "dev:seed-workforce": "node scripts/seed-supabase-workforce.mjs",
     "dev": "turbo dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

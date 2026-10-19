@@ -40,8 +40,10 @@ async function updateReport(formData: FormData): Promise<void> {
   'use server';
   const apiUrl = process.env.TAVIRA_API_URL;
   const accessToken = (await cookies()).get(accessTokenCookie)?.value;
-  const reportId = String(formData.get('reportId') ?? '');
-  const status = String(formData.get('status') ?? '');
+  const reportIdValue = formData.get('reportId');
+  const statusValue = formData.get('status');
+  const reportId = typeof reportIdValue === 'string' ? reportIdValue : '';
+  const status = typeof statusValue === 'string' ? statusValue : '';
   if (!apiUrl || !accessToken || !reportId) return;
   await fetch(`${apiUrl}/v1/admin/moderation/reports/${reportId}`, {
     method: 'PATCH',
@@ -65,7 +67,7 @@ export default async function Page() {
         <div className="brand-row">
           <span>TAVIRA</span>
           <nav>
-            <a href="/auth/login">Workforce sign in</a>
+            <a href="/auth/sign-in">Workforce sign in</a>
             <a href="/auth/logout">Sign out</a>
           </nav>
         </div>

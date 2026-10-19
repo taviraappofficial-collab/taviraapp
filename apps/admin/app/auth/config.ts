@@ -1,25 +1,17 @@
-export type EntraConfig = {
-  tenantId: string;
-  clientId: string;
-  clientSecret: string;
-  redirectUri: string;
-  apiScope: string;
+export type SupabaseConfig = {
+  url: string;
+  anonKey: string;
 };
 
-export function readEntraConfig(): EntraConfig | null {
-  const tenantId = process.env.ENTRA_TENANT_ID;
-  const clientId = process.env.ENTRA_ADMIN_CLIENT_ID;
-  const clientSecret = process.env.ENTRA_ADMIN_CLIENT_SECRET;
-  const redirectUri = process.env.ENTRA_ADMIN_REDIRECT_URI;
-  const apiScope = process.env.ENTRA_API_SCOPE;
-  if (!tenantId || !clientId || !clientSecret || !redirectUri || !apiScope)
-    return null;
-  return { tenantId, clientId, clientSecret, redirectUri, apiScope };
+export function readSupabaseConfig(): SupabaseConfig | null {
+  const url = process.env.SUPABASE_URL?.replace(/\/$/, '');
+  const anonKey = process.env.SUPABASE_ANON_KEY;
+  if (!url || !anonKey || !url.startsWith('https://')) return null;
+  return { url, anonKey };
 }
 
 export const accessTokenCookie = 'tavira_admin_access';
-export const oauthStateCookie = 'tavira_oauth_state';
-export const pkceVerifierCookie = 'tavira_pkce_verifier';
+export const refreshTokenCookie = 'tavira_admin_refresh';
 
 export const secureCookie = {
   httpOnly: true,

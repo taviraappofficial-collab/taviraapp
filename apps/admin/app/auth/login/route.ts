@@ -1,41 +1,66 @@
-import { createHash, randomBytes } from 'node:crypto';
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import {
-  oauthStateCookie,
-  pkceVerifierCookie,
-  readEntraConfig,
+  accessTokenCookie,
+  readSupabaseConfig,
+  refreshTokenCookie,
   secureCookie,
 } from '../config';
 
-export function GET(): NextResponse {
-  const config = readEntraConfig();
-  if (!config)
-    return NextResponse.json(
-      { code: 'WORKFORCE_AUTH_UNAVAILABLE' },
-      { status: 503 },
+export function GET(request: NextRequest): NextResponse {
+  return NextResponse.redirect(new URL('/auth/sign-in', request.url));
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const config = readSupabaseConfig();
+  const form = await request.formData();
+  const emailValue = form.get('email');
+  const passwordValue = form.get('password');
+  const email = typeof emailValue === 'string' ? emailValue.trim() : '';
+  const password = typeof passwordValue === 'string' ? passwordValue : '';
+  if (!config || !email || !password) return failure(request);
+  try {
+    const tokenResponse = await fetch(
+      `${config.url}/auth/v1/token?grant_type=password`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: config.anonKey,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+        cache: 'no-store',
+      },
     );
-  const state = randomBytes(32).toString('base64url');
-  const verifier = randomBytes(48).toString('base64url');
-  const challenge = createHash('sha256').update(verifier).digest('base64url');
-  const authorize = new URL(
-    `https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/authorize`,
-  );
-  authorize.searchParams.set('client_id', config.clientId);
-  authorize.searchParams.set('response_type', 'code');
-  authorize.searchParams.set('redirect_uri', config.redirectUri);
-  authorize.searchParams.set('response_mode', 'query');
-  authorize.searchParams.set('scope', `openid profile ${config.apiScope}`);
-  authorize.searchParams.set('state', state);
-  authorize.searchParams.set('code_challenge', challenge);
-  authorize.searchParams.set('code_challenge_method', 'S256');
-  const response = NextResponse.redirect(authorize);
-  response.cookies.set(oauthStateCookie, state, {
-    ...secureCookie,
-    maxAge: 600,
-  });
-  response.cookies.set(pkceVerifierCookie, verifier, {
-    ...secureCookie,
-    maxAge: 600,
-  });
-  return response;
+    const session = (await tokenResponse.json()) as {
+      access_token?: unknown;
+      refresh_token?: unknown;
+      expires_in?: unknown;
+    };
+    if (
+      !tokenResponse.ok ||
+      typeof session.access_token !== 'string' ||
+      typeof session.refresh_token !== 'string' ||
+      typeof session.expires_in !== 'number'
+    )
+      return failure(request);
+    const response = NextResponse.redirect(new URL('/', request.url), 303);
+    response.cookies.set(accessTokenCookie, session.access_token, {
+      ...secureCookie,
+      maxAge: Math.max(60, session.expires_in - 60),
+    });
+    response.cookies.set(refreshTokenCookie, session.refresh_token, {
+      ...secureCookie,
+      maxAge: 60 * 60 * 24 * 30,
+    });
+    return response;
+  } catch {
+    return failure(request);
+  }
+}
+
+function failure(request: NextRequest): NextResponse {
+  const url = new URL('/auth/sign-in', request.url);
+  url.searchParams.set('error', 'invalid_credentials');
+  return NextResponse.redirect(url, 303);
 }

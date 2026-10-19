@@ -1,34 +1,49 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { GET } from './route';
+import { NextRequest } from 'next/server';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { GET, POST } from './route';
 
 describe('workforce login route', () => {
-  beforeEach(() => {
-    process.env.ENTRA_TENANT_ID = '05c16d30-e55d-4f36-80b8-216b515b7c14';
-    process.env.ENTRA_ADMIN_CLIENT_ID = 'f8b4e742-b4c9-4295-af61-9264a4b0aa99';
-    process.env.ENTRA_ADMIN_CLIENT_SECRET = 'test-secret-never-sent-to-browser';
-    process.env.ENTRA_ADMIN_REDIRECT_URI =
-      'http://localhost:3002/auth/callback';
-    process.env.ENTRA_API_SCOPE = 'api://api-client-id/.default';
-  });
-
   afterEach(() => {
-    delete process.env.ENTRA_TENANT_ID;
-    delete process.env.ENTRA_ADMIN_CLIENT_ID;
-    delete process.env.ENTRA_ADMIN_CLIENT_SECRET;
-    delete process.env.ENTRA_ADMIN_REDIRECT_URI;
-    delete process.env.ENTRA_API_SCOPE;
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_ANON_KEY;
+    vi.unstubAllGlobals();
   });
 
-  it('redirects with PKCE and sets protected transient cookies', () => {
-    const response = GET();
-    const location = new URL(response.headers.get('location') ?? '');
-    const cookies = response.headers.getSetCookie().join(';');
-    expect(location.hostname).toBe('login.microsoftonline.com');
-    expect(location.searchParams.get('code_challenge_method')).toBe('S256');
-    expect(location.searchParams.get('state')).toBeTruthy();
-    expect(location.toString()).not.toContain(
-      process.env.ENTRA_ADMIN_CLIENT_SECRET!,
+  it('redirects GET requests to the local sign-in form', () => {
+    const request = new NextRequest('http://localhost:3002/auth/login');
+    const response = GET(request);
+    expect(response.headers.get('location')).toBe(
+      'http://localhost:3002/auth/sign-in',
     );
+  });
+
+  it('sets protected session cookies after Supabase authentication', async () => {
+    process.env.SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_ANON_KEY = 'public-anon-key';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        Response.json({
+          access_token: 'signed-access-token',
+          refresh_token: 'opaque-refresh-token',
+          expires_in: 3600,
+        }),
+      ),
+    );
+    const request = new NextRequest('http://localhost:3002/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        email: 'admin@example.com',
+        password: 'not-a-real-password',
+      }),
+    });
+    const response = await POST(request);
+    const cookies = response.headers.getSetCookie().join(';');
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('http://localhost:3002/');
+    expect(cookies).toContain('tavira_admin_access=signed-access-token');
+    expect(cookies).toContain('tavira_admin_refresh=opaque-refresh-token');
     expect(cookies).toContain('HttpOnly');
     expect(cookies).toContain('SameSite=lax');
   });
