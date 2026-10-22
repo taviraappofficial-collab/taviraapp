@@ -5,6 +5,6 @@ const generationOnlyUrl = 'postgresql://invalid:invalid@localhost:5432/invalid';
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
-  migrations: { path: '../../infra/migrations' },
+  migrations: { path: 'prisma/migrations' },
   datasource: { url: process.env.DATABASE_URL ?? generationOnlyUrl },
 });
