@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { CreatorStatus } from '@tavira/contracts';
 import { canPerformCreatorAction, creatorActions } from './index';
 
-const statuses: CreatorStatus[] = [
+const statuses = [
   'not_applied',
   'pending',
   'approved',
   'rejected',
   'suspended',
   'revoked',
-];
+] as const;
 
 describe('creator-only permissions', () => {
   for (const status of statuses) {
