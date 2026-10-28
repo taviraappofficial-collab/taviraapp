@@ -47,4 +47,35 @@ describe('workforce login route', () => {
     expect(cookies).toContain('HttpOnly');
     expect(cookies).toContain('SameSite=lax');
   });
+
+  it('uses the public proxy origin for production redirects', async () => {
+    process.env.SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_ANON_KEY = 'public-anon-key';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        Response.json({
+          access_token: 'signed-access-token',
+          refresh_token: 'opaque-refresh-token',
+          expires_in: 3600,
+        }),
+      ),
+    );
+    const request = new NextRequest('http://localhost:3002/auth/login', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        'x-forwarded-host': 'tavira-admin.onrender.com',
+        'x-forwarded-proto': 'https',
+      },
+      body: new URLSearchParams({
+        email: 'admin@example.com',
+        password: 'not-a-real-password',
+      }),
+    });
+    const response = await POST(request);
+    expect(response.headers.get('location')).toBe(
+      'https://tavira-admin.onrender.com/',
+    );
+  });
 });

@@ -2,13 +2,14 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import {
   accessTokenCookie,
+  publicUrl,
   readSupabaseConfig,
   refreshTokenCookie,
   secureCookie,
 } from '../config';
 
 export function GET(request: NextRequest): NextResponse {
-  return NextResponse.redirect(new URL('/auth/sign-in', request.url));
+  return NextResponse.redirect(publicUrl(request, '/auth/sign-in'));
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       typeof session.expires_in !== 'number'
     )
       return failure(request);
-    const response = NextResponse.redirect(new URL('/', request.url), 303);
+    const response = NextResponse.redirect(publicUrl(request, '/'), 303);
     response.cookies.set(accessTokenCookie, session.access_token, {
       ...secureCookie,
       maxAge: Math.max(60, session.expires_in - 60),
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 }
 
 function failure(request: NextRequest): NextResponse {
-  const url = new URL('/auth/sign-in', request.url);
+  const url = publicUrl(request, '/auth/sign-in');
   url.searchParams.set('error', 'invalid_credentials');
   return NextResponse.redirect(url, 303);
 }
