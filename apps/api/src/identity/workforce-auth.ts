@@ -1,7 +1,10 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
-export type WorkforceRole = 'Tavira.Moderator' | 'Tavira.AuditExporter';
+export type WorkforceRole =
+  | 'Tavira.Moderator'
+  | 'Tavira.AuditExporter'
+  | 'Tavira.SuperAdministrator';
 
 export type WorkforcePrincipal = {
   id: string;
@@ -48,7 +51,7 @@ export class SupabaseWorkforceAuthenticator extends WorkforceAuthenticator {
       const roles = Array.isArray(metadata.roles)
         ? metadata.roles.filter(isWorkforceRole)
         : [];
-      if (!roles.includes(requiredRole))
+      if (!hasWorkforceRole(roles, requiredRole))
         throw authError('WORKFORCE_ROLE_REQUIRED');
       const name =
         typeof payload.email === 'string' ? payload.email : payload.sub;
@@ -92,7 +95,20 @@ function isUuid(value: unknown): value is string {
 }
 
 function isWorkforceRole(value: unknown): value is WorkforceRole {
-  return value === 'Tavira.Moderator' || value === 'Tavira.AuditExporter';
+  return (
+    value === 'Tavira.Moderator' ||
+    value === 'Tavira.AuditExporter' ||
+    value === 'Tavira.SuperAdministrator'
+  );
+}
+
+export function hasWorkforceRole(
+  roles: readonly WorkforceRole[],
+  requiredRole: WorkforceRole,
+): boolean {
+  return (
+    roles.includes('Tavira.SuperAdministrator') || roles.includes(requiredRole)
+  );
 }
 
 function authError(code: string): UnauthorizedException {
