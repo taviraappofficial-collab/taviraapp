@@ -11,11 +11,11 @@ describe('workforce role hierarchy', () => {
   });
 
   it('does not let scoped roles inherit other workforce permissions', () => {
-    expect(
-      hasWorkforceRole(['Tavira.Moderator'], 'Tavira.AuditExporter'),
-    ).toBe(false);
-    expect(
-      hasWorkforceRole(['Tavira.AuditExporter'], 'Tavira.Moderator'),
-    ).toBe(false);
+    expect(hasWorkforceRole(['Tavira.Moderator'], 'Tavira.AuditExporter')).toBe(
+      false,
+    );
+    expect(hasWorkforceRole(['Tavira.AuditExporter'], 'Tavira.Moderator')).toBe(
+      false,
+    );
   });
 });
