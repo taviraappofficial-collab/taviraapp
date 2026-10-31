@@ -7,7 +7,10 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
-    "plugins": ["expo-router", "expo-secure-store"],
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
     "android": {
       "package": "com.tavira.app",
       "versionCode": 1,
@@ -22,6 +25,12 @@
     },
     "web": {
       "bundler": "metro"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2c7ea74b-0d3f-4876-8e89-79163335041f"
+      }
     }
   }
 }
