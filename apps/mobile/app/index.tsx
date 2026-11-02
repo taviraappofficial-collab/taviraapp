@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import type { ImageSourcePropType } from 'react-native';
 import {
   Avatar,
   BottomNavigation,
@@ -17,6 +18,10 @@ import {
   tokens,
 } from '@tavira/ui';
 import taviraLogo from '../assets/tavira-logo.png';
+import featuredFounders from '../assets/review/featured-founders.png';
+import liveMusic from '../assets/review/live-music.png';
+import indigoTote from '../assets/review/indigo-tote.png';
+import clayVase from '../assets/review/clay-vase.png';
 
 type Tab = 'home' | 'chats' | 'discover' | 'store' | 'profile';
 const navIconStyle = {
@@ -60,6 +65,17 @@ export default function TeamPreview() {
       {activeTab === 'discover' ? <Discover /> : null}
       {activeTab === 'store' ? <Store /> : null}
       {activeTab === 'profile' ? <Profile /> : null}
+      <Link href="/sos-review" asChild>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open TAVIRA SOS emergency assistance"
+          style={styles.sosButton}
+        >
+          <View style={styles.sosPulse} />
+          <Text style={styles.sosIcon}>!</Text>
+          <Text style={styles.sosLabel}>SOS</Text>
+        </Pressable>
+      </Link>
       <BottomNavigation
         items={navigation}
         activeKey={activeTab}
@@ -165,6 +181,7 @@ function Home({ onNavigate }: { onNavigate: (tab: Tab) => void }) {
         onPress={() => onNavigate('discover')}
       />
       <View style={styles.liveCard}>
+        <Image source={liveMusic} resizeMode="cover" style={styles.liveImage} />
         <View style={styles.liveTop}>
           <View style={styles.liveBadge}>
             <Text style={styles.liveBadgeText}>● LIVE</Text>
@@ -194,12 +211,14 @@ function Home({ onNavigate }: { onNavigate: (tab: Tab) => void }) {
           <ProductCard
             name="Handwoven Indigo Tote"
             priceMinor={4250000}
+            imageSource={indigoTote}
             seller="Adire House Lagos"
             onPress={() => onNavigate('store')}
           />
           <ProductCard
             name="Minimal Clay Vase"
             priceMinor={2850000}
+            imageSource={clayVase}
             seller="Earth & Form"
             onPress={() => onNavigate('store')}
           />
@@ -244,8 +263,12 @@ function Chats() {
           onPress={() => undefined}
         />
       </View>
-      <Pressable style={styles.floatingAction}>
+      <Pressable
+        accessibilityLabel="Start a new chat"
+        style={styles.floatingAction}
+      >
         <Text style={styles.floatingActionText}>＋</Text>
+        <Text style={styles.floatingActionLabel}>New chat</Text>
       </Pressable>
     </Page>
   );
@@ -262,6 +285,7 @@ function Discover() {
         eyebrow="FEATURED COMMUNITY"
         title="The Creative Economy"
         detail="8.4k members · Design, film, music, and culture"
+        imageSource={featuredFounders}
       />
       <SectionHeader title="Trending conversations" />
       <TopicCard
@@ -306,31 +330,22 @@ function Store() {
         eyebrow="CREATOR SPOTLIGHT"
         title="Objects with a story"
         detail="Meet makers turning heritage techniques into modern essentials."
+        imageSource={featuredFounders}
       />
       <SectionHeader title="Editor’s picks" action="See all" />
       <View style={styles.productGrid}>
         <ProductCard
           name="Handwoven Indigo Tote"
           priceMinor={4250000}
+          imageSource={indigoTote}
           seller="Adire House Lagos"
           onPress={() => undefined}
         />
         <ProductCard
           name="Minimal Clay Vase"
           priceMinor={2850000}
+          imageSource={clayVase}
           seller="Earth & Form"
-          onPress={() => undefined}
-        />
-        <ProductCard
-          name="Brass Arc Earrings"
-          priceMinor={1800000}
-          seller="Kora Studio"
-          onPress={() => undefined}
-        />
-        <ProductCard
-          name="Woven Table Set"
-          priceMinor={3600000}
-          seller="Aso Home"
           onPress={() => undefined}
         />
       </View>
@@ -451,13 +466,21 @@ function FeatureCard({
   eyebrow,
   title,
   detail,
+  imageSource,
 }: {
   eyebrow: string;
   title: string;
   detail: string;
+  imageSource: ImageSourcePropType;
 }) {
   return (
     <View style={styles.featureCard}>
+      <Image
+        source={imageSource}
+        resizeMode="cover"
+        style={styles.featureImage}
+      />
+      <View style={styles.featureScrim} />
       <Text style={styles.featureEyebrow}>{eyebrow}</Text>
       <Text style={styles.featureTitle}>{title}</Text>
       <Text style={styles.featureDetail}>{detail}</Text>
@@ -667,8 +690,13 @@ const styles = StyleSheet.create({
   },
   sectionAction: {
     color: tokens.color.accent,
+    backgroundColor: '#FFE7E8',
+    borderRadius: 999,
     fontFamily: tokens.typography.family.strong,
     fontSize: 13,
+    overflow: 'hidden',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   quickCard: {
@@ -705,6 +733,12 @@ const styles = StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: '#EEEAF3',
+  },
+  liveImage: {
+    borderRadius: 16,
+    height: 170,
+    marginBottom: 18,
+    width: '100%',
   },
   liveTop: {
     flexDirection: 'row',
@@ -760,20 +794,37 @@ const styles = StyleSheet.create({
   },
   floatingAction: {
     alignSelf: 'flex-end',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    minHeight: 52,
+    borderRadius: 26,
     backgroundColor: tokens.color.accent,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 7,
+    paddingHorizontal: 18,
   },
-  floatingActionText: { color: tokens.color.surface, fontSize: 28 },
+  floatingActionText: { color: tokens.color.surface, fontSize: 22 },
+  floatingActionLabel: {
+    color: tokens.color.surface,
+    fontFamily: tokens.typography.family.strong,
+    fontSize: 14,
+  },
   featureCard: {
     backgroundColor: '#EEEAF8',
     borderRadius: 22,
+    overflow: 'hidden',
     padding: 24,
-    minHeight: 190,
+    minHeight: 280,
     justifyContent: 'flex-end',
+  },
+  featureImage: {
+    ...StyleSheet.absoluteFillObject,
+    height: '100%',
+    width: '100%',
+  },
+  featureScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(23,19,63,0.62)',
   },
   featureEyebrow: {
     color: tokens.color.accent,
@@ -782,20 +833,20 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
   featureTitle: {
-    color: tokens.color.primary,
+    color: tokens.color.surface,
     fontFamily: tokens.typography.family.display,
     fontSize: 26,
     marginTop: 10,
   },
   featureDetail: {
-    color: tokens.color.inkMuted,
+    color: '#E8E5F2',
     fontFamily: tokens.typography.family.body,
     fontSize: 14,
     lineHeight: 20,
     marginTop: 8,
   },
   featureLink: {
-    color: tokens.color.primary,
+    color: tokens.color.gold,
     fontFamily: tokens.typography.family.strong,
     fontSize: 13,
     marginTop: 18,
@@ -846,14 +897,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   joinButton: {
-    borderWidth: 1,
-    borderColor: tokens.color.primary,
+    backgroundColor: tokens.color.primary,
     borderRadius: 999,
     paddingVertical: 7,
     paddingHorizontal: 15,
   },
   joinButtonText: {
-    color: tokens.color.primary,
+    color: tokens.color.surface,
     fontFamily: tokens.typography.family.strong,
     fontSize: 12,
   },
@@ -960,6 +1010,8 @@ const styles = StyleSheet.create({
   },
   reviewChip: {
     backgroundColor: tokens.color.surface,
+    borderColor: '#E3C98C',
+    borderWidth: 1,
     borderRadius: 999,
     paddingVertical: 9,
     paddingHorizontal: 13,
@@ -968,5 +1020,52 @@ const styles = StyleSheet.create({
     color: tokens.color.primary,
     fontFamily: tokens.typography.family.strong,
     fontSize: 11,
+  },
+  sosButton: {
+    alignItems: 'center',
+    backgroundColor: '#B42318',
+    borderColor: '#FFFFFF',
+    borderRadius: 30,
+    borderWidth: 3,
+    bottom: 82,
+    elevation: 8,
+    flexDirection: 'row',
+    gap: 6,
+    minHeight: 56,
+    paddingHorizontal: 16,
+    position: 'absolute',
+    right: 16,
+    shadowColor: '#B42318',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    zIndex: 20,
+  },
+  sosPulse: {
+    backgroundColor: '#FF8A80',
+    borderRadius: 34,
+    bottom: -7,
+    left: -7,
+    opacity: 0.2,
+    position: 'absolute',
+    right: -7,
+    top: -7,
+  },
+  sosIcon: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    color: '#B42318',
+    fontFamily: tokens.typography.family.strong,
+    fontSize: 14,
+    height: 23,
+    lineHeight: 23,
+    textAlign: 'center',
+    width: 23,
+  },
+  sosLabel: {
+    color: '#FFFFFF',
+    fontFamily: tokens.typography.family.display,
+    fontSize: 15,
+    letterSpacing: 0.7,
   },
 });
