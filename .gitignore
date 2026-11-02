@@ -11,3 +11,6 @@ coverage/
 *.tsbuildinfo
 apps/api/src/generated/prisma/
 .pnpm-store/
+/*.apk
+/tavira-*-device*.png
+/tavira-device-verification.png
